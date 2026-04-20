@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment variables — JANGAN pernah push file ini!
+.env
+
+# Folder download sementara — abaikan isinya, tapi jaga folder-nya
+downloads/*
+!downloads/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime
+*.pid
