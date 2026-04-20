@@ -19,17 +19,17 @@ const MAX_FILE_MB      = 49;           // batas upload Telegram
 const EXEC_TIMEOUT     = 3 * 60_000;   // 3 menit max per download
 const MAX_RETRIES      = 2;            // retry otomatis jika gagal
 
-// Browser untuk ambil cookies — ganti sesuai browser yang kamu pakai
-// Pilihan: chrome, chromium, firefox, vivaldi, brave, edge, opera
-const COOKIES_BROWSER  = process.env.COOKIES_BROWSER || "vivaldi";
-
-// Platform yang butuh cookies login agar bisa diakses
+// Kami mengubah logic pengambilan cookies untuk support cloud container backend.
+// Pastikan file cookies.txt tersedia di direktori utama bot (setara package.json).
 const NEEDS_COOKIES    = ["instagram", "facebook", "twitter"];
 
 // Tambah flag cookies kalau platform membutuhkannya
 function cookiesFlag(platformKey) {
   if (NEEDS_COOKIES.includes(platformKey)) {
-    return `--cookies-from-browser ${COOKIES_BROWSER}`;
+    const cookiePath = path.join(__dirname, "..", "cookies.txt");
+    if (fs.existsSync(cookiePath)) {
+      return `--cookies "${cookiePath}"`;
+    }
   }
   return "";
 }
