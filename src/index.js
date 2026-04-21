@@ -16,6 +16,7 @@ const {
   executeDownload,
   executePhotoDownload,
 } = require("./handlers/download");
+const { handleTestEnv } = require("./handlers/admin");
 const { detectPlatform, queue, PLATFORMS } = require("./downloader");
 
 // ─── Bot Init ─────────────────────────────────────────────────
@@ -101,7 +102,6 @@ bot.onText(/\/queue/, (msg) => {
     { parse_mode: "Markdown" }
   );
 });
-
 bot.onText(/\/admin/, (msg) => {
   if (!isAdmin(msg.from.id))
     return bot.sendMessage(msg.chat.id, "⛔ Akses ditolak.");
@@ -121,6 +121,11 @@ bot.onText(/\/admin/, (msg) => {
     `Queue — Total:${qs.total} ✅${qs.success} ❌${qs.failed}`,
     { parse_mode: "Markdown" }
   );
+});
+
+bot.onText(/\/testenv/, (msg) => {
+  if (!isAdmin(msg.from.id)) return;
+  handleTestEnv(bot, msg.chat.id);
 });
 
 // ─── Callback (Inline Buttons) ────────────────────────────────

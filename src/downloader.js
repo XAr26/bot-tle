@@ -19,13 +19,20 @@ for (const dir of [DOWNLOAD_DIR, THUMB_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-// ─── Cek yt-dlp tersedia saat startup ────────────────────────
+// ─── Cek dependencies tersedia saat startup ──────────────────
 exec(`which ${YT_DLP_BIN} || command -v ${YT_DLP_BIN}`, (err, stdout) => {
   if (err || !stdout.trim()) {
-    console.error(`⚠️  ${YT_DLP_BIN} tidak ditemukan di PATH! Download tidak akan berfungsi.`);
-    console.error("    PATH saat ini:", process.env.PATH);
+    console.error(`⚠️  ${YT_DLP_BIN} tidak ditemukan! Download mungkin gagal.`);
   } else {
-    console.log(`✅ ${YT_DLP_BIN} ditemukan di:`, stdout.trim());
+    console.log(`✅ ${YT_DLP_BIN} ditemukan:`, stdout.trim());
+  }
+});
+
+exec("ffmpeg -version", (err) => {
+  if (err) {
+    console.error("⚠️  ffmpeg tidak ditemukan! Video merging akan gagal.");
+  } else {
+    console.log("✅ ffmpeg terdeteksi dan siap digunakan.");
   }
 });
 
@@ -408,4 +415,6 @@ module.exports = {
   queue,
   PLATFORMS,
   DownloadError,
+  YT_DLP_BIN,
+  DOWNLOAD_DIR,
 };
