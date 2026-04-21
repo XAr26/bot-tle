@@ -8,5 +8,9 @@ cmds = [
   "uv tool install instaloader"
 ]
 
+# Pastikan binary uv tools ada di PATH saat runtime
+[variables]
+PATH = "/root/.local/bin:$PATH"
+
 [start]
 cmd = "node src/index.js"

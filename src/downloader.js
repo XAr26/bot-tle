@@ -17,6 +17,16 @@ for (const dir of [DOWNLOAD_DIR, THUMB_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// ─── Cek yt-dlp tersedia saat startup ────────────────────────
+exec("which yt-dlp || command -v yt-dlp", (err, stdout) => {
+  if (err || !stdout.trim()) {
+    console.error("⚠️  yt-dlp tidak ditemukan di PATH! Download tidak akan berfungsi.");
+    console.error("    PATH saat ini:", process.env.PATH);
+  } else {
+    console.log("✅ yt-dlp ditemukan di:", stdout.trim());
+  }
+});
+
 // ─── Konstanta ───────────────────────────────────────────────
 const { maxFileMB: MAX_FILE_MB, execTimeout: EXEC_TIMEOUT, maxRetries: MAX_RETRIES } = config.download;
 
@@ -157,9 +167,19 @@ class DownloadError extends Error {
 // ─── Exec Wrapper ─────────────────────────────────────────────
 function execAsync(cmd) {
   return new Promise((resolve, reject) => {
+    // Log command ke console agar terlihat di Railway logs
+    console.log(`[exec] ${cmd}`);
+
     exec(cmd, { timeout: EXEC_TIMEOUT }, (err, stdout, stderr) => {
       if (err) {
         const msg = stderr || err.message || "unknown error";
+
+        // Log raw error ke Railway logs untuk debugging
+        console.error(`[exec error] code=${err.code} msg=${msg.slice(0, 300)}`);
+
+        // yt-dlp tidak ditemukan di PATH
+        if (err.code === 127 || /not found|No such file/i.test(msg))
+          return reject(new DownloadError("NOT_INSTALLED", "yt-dlp tidak terinstall di server."));
 
         if (/Private|private video/i.test(msg))       return reject(new DownloadError("PRIVATE",   "Video bersifat privat."));
         if (/not available|unavailable/i.test(msg))   return reject(new DownloadError("UNAVAIL",   "Video tidak tersedia."));

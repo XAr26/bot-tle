@@ -97,13 +97,14 @@ async function handleLinkDetected(bot, chatId, userId, url) {
 
 // ─── Error Map ────────────────────────────────────────────────
 const DOWNLOAD_ERROR_MAP = {
-  PRIVATE:   "🔒 Video privat.",
-  AGE:       "🔞 Video dibatasi usia.",
-  COPYRIGHT: "⚖️ Video kena copyright.",
-  NOT_FOUND: "🔍 Link tidak ditemukan.",
-  UNAVAIL:   "❌ Video tidak tersedia.",
-  EXTRACT:   "⚠️ Gagal ekstrak link.",
-  GENERAL:   "❌ Download gagal.",
+  PRIVATE:       "🔒 Video privat.",
+  AGE:           "🔞 Video dibatasi usia.",
+  COPYRIGHT:     "⚖️ Video kena copyright.",
+  NOT_FOUND:     "🔍 Link tidak ditemukan.",
+  UNAVAIL:       "❌ Video tidak tersedia.",
+  EXTRACT:       "⚠️ Gagal ekstrak link.",
+  NOT_INSTALLED: "⚙️ yt-dlp belum terinstall di server. Hubungi admin.",
+  GENERAL:       "❌ Download gagal.",
 };
 
 function getErrorMessage(err) {
