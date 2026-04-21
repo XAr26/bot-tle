@@ -91,13 +91,23 @@ npm run dev
 ## 📁 Struktur Proyek
 
 ```
-bot-downloader-ai/
+bot-tle/
 ├── src/
-│   ├── index.js        # Entry point: bot logic, commands, AI handler
-│   └── downloader.js   # Engine: download, queue, metadata, platform detection
-├── downloads/          # Folder sementara file download (di-ignore git)
-├── .env.example        # Template environment variables
+│   ├── index.js            # Entry point: inisialisasi bot, routing pesan & commands
+│   ├── config.js           # Konfigurasi terpusat dari ENV
+│   ├── store.js            # State management (memory, stats, url store)
+│   ├── utils.js            # Helper functions (format, validasi, dll)
+│   ├── downloader.js       # Engine: download, queue, metadata, platform detection
+│   └── handlers/
+│       ├── ai.js           # Handler AI chat (Ollama streaming)
+│       └── download.js     # Handler download flow & keyboard
+├── downloads/              # Folder sementara file download (di-ignore git)
+├── cookies.txt             # Cookie browser untuk auth (di-ignore git, JANGAN push!)
+├── .env                    # Environment variables (di-ignore git, JANGAN push!)
+├── .env.example            # Template ENV
 ├── .gitignore
+├── nixpacks.toml           # Konfigurasi build Railway
+├── railway.json            # Konfigurasi deploy Railway
 ├── package.json
 └── README.md
 ```
@@ -126,6 +136,42 @@ bot-downloader-ai/
 | `OLLAMA_URL` | ✅ | URL server Ollama (default: `http://localhost:11434`) |
 | `OLLAMA_MODEL` | ✅ | Nama model Ollama yang dipakai |
 | `ADMIN_IDS` | ❌ | ID Telegram admin, pisah koma |
+| `COOKIES_PATH` | ❌ | Path ke cookies.txt (default: `cookies.txt` di root) |
+| `IG_USERNAME` | ❌ | Username Instagram untuk instaloader |
+
+---
+
+## 🗺️ Roadmap Pengembangan
+
+Fondasi sudah dipisah per modul sehingga setiap item di bawah bisa dikerjakan tanpa menyentuh file lain.
+
+### Persistensi Data
+- [ ] Ganti `store.js` in-memory → SQLite (`better-sqlite3`) atau Redis
+- [ ] Simpan riwayat AI per user agar tidak hilang saat restart
+- [ ] Simpan statistik download ke database
+
+### Fitur Bot
+- [ ] Support grup (saat ini hanya private chat)
+- [ ] Command `/lang` untuk ganti bahasa respons AI
+- [ ] Notifikasi selesai download via inline button "Download lagi"
+- [ ] Rate limiting per user (cegah spam download)
+- [ ] Whitelist/blacklist user via command admin
+
+### AI
+- [ ] Ganti Ollama → OpenAI / Groq / Gemini (cukup edit `handlers/ai.js`)
+- [ ] System prompt yang bisa dikonfigurasi via ENV
+- [ ] Mode AI khusus: ringkas artikel dari URL, terjemahan, dll
+
+### Download Engine
+- [ ] Progress bar persentase download (via yt-dlp `--progress`)
+- [ ] Tambah platform baru: cukup tambah entry di `PLATFORMS` di `downloader.js`
+- [ ] Cache metadata agar tidak fetch ulang untuk URL yang sama
+- [ ] Support playlist YouTube (download semua video)
+
+### Infrastruktur
+- [ ] Health check endpoint (HTTP server kecil) untuk monitoring Railway
+- [ ] Logging terstruktur (JSON) dengan level INFO/WARN/ERROR
+- [ ] Graceful shutdown yang menunggu download aktif selesai
 
 ---
 

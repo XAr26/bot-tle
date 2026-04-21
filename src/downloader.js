@@ -1,10 +1,13 @@
 // ============================================================
 //  downloader.js  — Engine download + queue + metadata
 // ============================================================
-const { exec }   = require("child_process");
-const fs         = require("fs");
-const path       = require("path");
+"use strict";
+
+const { exec }         = require("child_process");
+const fs               = require("fs");
+const path             = require("path");
 const { EventEmitter } = require("events");
+const config           = require("./config");
 
 // ─── Direktori ───────────────────────────────────────────────
 const DOWNLOAD_DIR = path.join(__dirname, "downloads");
@@ -15,37 +18,44 @@ for (const dir of [DOWNLOAD_DIR, THUMB_DIR]) {
 }
 
 // ─── Konstanta ───────────────────────────────────────────────
-const MAX_FILE_MB      = 49;           // batas upload Telegram
-const EXEC_TIMEOUT     = 3 * 60_000;   // 3 menit max per download
-const MAX_RETRIES      = 2;            // retry otomatis jika gagal
+const { maxFileMB: MAX_FILE_MB, execTimeout: EXEC_TIMEOUT, maxRetries: MAX_RETRIES } = config.download;
 
-// Kami mengubah logic pengambilan cookies untuk support cloud container backend.
-// Pastikan file cookies.txt tersedia di direktori utama bot (setara package.json).
-const NEEDS_COOKIES    = ["instagram", "facebook", "twitter"];
-
-// Tambah flag cookies kalau platform membutuhkannya
+// ─── Cookies Helper ──────────────────────────────────────────
+/**
+ * Kembalikan flag --cookies jika platform membutuhkannya
+ * dan file cookies.txt tersedia.
+ *
+ * Path cookies bisa dikonfigurasi via COOKIES_PATH di .env,
+ * fallback ke cookies.txt di root project.
+ */
 function cookiesFlag(platformKey) {
-  if (NEEDS_COOKIES.includes(platformKey)) {
-    const cookiePath = path.join(__dirname, "..", "cookies.txt");
-    if (fs.existsSync(cookiePath)) {
-      return `--cookies "${cookiePath}"`;
-    }
+  if (!config.download.cookiesPlatforms.includes(platformKey)) return "";
+
+  // Prioritas: COOKIES_PATH dari env → default root project
+  const candidates = [
+    config.download.cookiesPath,
+    path.join(__dirname, "..", "cookies.txt"),
+  ].filter(Boolean);
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return `--cookies "${p}"`;
   }
+
   return "";
 }
 
 // ─── Platform Detection ──────────────────────────────────────
 const PLATFORMS = {
-  youtube:   { regex: /youtube\.com|youtu\.be/,              label: "YouTube",   icon: "🎬" },
-  instagram: { regex: /instagram\.com/,                       label: "Instagram", icon: "📸" },
-  tiktok:    { regex: /tiktok\.com|vm\.tiktok/,              label: "TikTok",    icon: "🎵" },
-  twitter:   { regex: /twitter\.com|x\.com/,                 label: "Twitter/X", icon: "🐦" },
-  facebook:  { regex: /facebook\.com|fb\.watch|fb\.com/,     label: "Facebook",  icon: "👤" },
-  soundcloud:{ regex: /soundcloud\.com/,                     label: "SoundCloud",icon: "🎧" },
-  spotify:   { regex: /open\.spotify\.com/,                  label: "Spotify",   icon: "🎵" },
-  reddit:    { regex: /reddit\.com|redd\.it/,                label: "Reddit",    icon: "🤖" },
-  twitch:    { regex: /twitch\.tv/,                          label: "Twitch",    icon: "🎮" },
-  generic:   { regex: /.*/,                                  label: "Generic",   icon: "🌐" },
+  youtube:    { regex: /youtube\.com|youtu\.be/,           label: "YouTube",    icon: "🎬" },
+  instagram:  { regex: /instagram\.com/,                    label: "Instagram",  icon: "📸" },
+  tiktok:     { regex: /tiktok\.com|vm\.tiktok/,           label: "TikTok",     icon: "🎵" },
+  twitter:    { regex: /twitter\.com|x\.com/,              label: "Twitter/X",  icon: "🐦" },
+  facebook:   { regex: /facebook\.com|fb\.watch|fb\.com/,  label: "Facebook",   icon: "👤" },
+  soundcloud: { regex: /soundcloud\.com/,                  label: "SoundCloud", icon: "🎧" },
+  spotify:    { regex: /open\.spotify\.com/,               label: "Spotify",    icon: "🎵" },
+  reddit:     { regex: /reddit\.com|redd\.it/,             label: "Reddit",     icon: "🤖" },
+  twitch:     { regex: /twitch\.tv/,                       label: "Twitch",     icon: "🎮" },
+  generic:    { regex: /.*/,                               label: "Generic",    icon: "🌐" },
 };
 
 function detectPlatform(url) {
@@ -57,12 +67,12 @@ function detectPlatform(url) {
 
 // ─── Format Builder ──────────────────────────────────────────
 function buildCommand({ url, type, quality, outputPath, platformKey = "generic" }) {
-  // Selalu quote URL untuk cegah injection
-  const safeUrl  = `"${url.replace(/"/g, '')}"`;
-  const out      = `"${outputPath}"`;
-  const noList   = "--no-playlist";
-  const noWarn   = "--no-warnings";
-  const cookies  = cookiesFlag(platformKey);  // "" kalau tidak butuh cookies
+  // Sanitasi URL — hapus double-quote untuk cegah injection
+  const safeUrl = `"${url.replace(/"/g, "")}"`;
+  const out     = `"${outputPath}"`;
+  const noList  = "--no-playlist";
+  const noWarn  = "--no-warnings";
+  const cookies = cookiesFlag(platformKey);
 
   if (type === "mp3" || type === "audio") {
     return `yt-dlp ${noList} ${noWarn} ${cookies} -x --audio-format mp3 --audio-quality 0 -o ${out} ${safeUrl}`;
@@ -72,9 +82,10 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
     return `yt-dlp ${noList} ${noWarn} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
   }
 
-  // 🖼️ Foto — download semua gambar dari post (Instagram, Twitter, dll)
+  // FIX: type "photo" seharusnya download semua gambar dari post,
+  // bukan --skip-download. Gunakan format terbaik yang tersedia.
   if (type === "photo") {
-    return `yt-dlp ${noList} ${noWarn} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
+    return `yt-dlp ${noList} ${noWarn} ${cookies} -o ${out} ${safeUrl}`;
   }
 
   // Video — pilih resolusi
@@ -92,9 +103,9 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
 
 // ─── Metadata Fetcher ─────────────────────────────────────────
 async function fetchMetadata(url) {
-  const safeUrl    = `"${url.replace(/"/g, '')}"`;
-  const platform   = detectPlatform(url);
-  const cookies    = cookiesFlag(platform.key);
+  const safeUrl  = `"${url.replace(/"/g, "")}"`;
+  const platform = detectPlatform(url);
+  const cookies  = cookiesFlag(platform.key);
 
   return new Promise((resolve) => {
     exec(
@@ -105,17 +116,17 @@ async function fetchMetadata(url) {
         try {
           const d = JSON.parse(stdout.trim().split("\n")[0]);
           resolve({
-            title:     d.title     || "Unknown",
-            uploader:  d.uploader  || d.channel || "Unknown",
-            duration:  d.duration  || 0,
-            thumbnail: d.thumbnail || null,
-            viewCount: d.view_count|| 0,
-            likeCount: d.like_count|| 0,
-            formats:   (d.formats || [])
-                         .filter(f => f.height)
-                         .map(f => f.height + "p")
-                         .filter((v, i, a) => a.indexOf(v) === i)
-                         .sort((a, b) => parseInt(a) - parseInt(b)),
+            title:     d.title      || "Unknown",
+            uploader:  d.uploader   || d.channel || "Unknown",
+            duration:  d.duration   || 0,
+            thumbnail: d.thumbnail  || null,
+            viewCount: d.view_count || 0,
+            likeCount: d.like_count || 0,
+            formats: (d.formats || [])
+              .filter(f => f.height)
+              .map(f => f.height + "p")
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .sort((a, b) => parseInt(a) - parseInt(b)),
           });
         } catch {
           resolve(null);
@@ -134,33 +145,34 @@ function cleanUp(fp) {
   if (fp && fs.existsSync(fp)) fs.unlink(fp, () => {});
 }
 
-// ─── Core Downloader ─────────────────────────────────────────
-function execAsync(cmd, attempt = 1) {
+// ─── Custom Error ─────────────────────────────────────────────
+class DownloadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name  = "DownloadError";
+    this.code  = code;
+  }
+}
+
+// ─── Exec Wrapper ─────────────────────────────────────────────
+function execAsync(cmd) {
   return new Promise((resolve, reject) => {
-    const proc = exec(cmd, { timeout: EXEC_TIMEOUT }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: EXEC_TIMEOUT }, (err, stdout, stderr) => {
       if (err) {
         const msg = stderr || err.message || "unknown error";
 
-        // Cek error umum & terjemahkan
-        if (/Private|private video/.test(msg))        return reject(new DownloadError("PRIVATE",   "Video bersifat privat."));
-        if (/not available|unavailable/.test(msg))    return reject(new DownloadError("UNAVAIL",   "Video tidak tersedia."));
-        if (/age.restricted|age.limit/.test(msg))     return reject(new DownloadError("AGE",       "Video dibatasi usia."));
-        if (/copyright|removed/.test(msg))            return reject(new DownloadError("COPYRIGHT", "Video dihapus/copyright."));
-        if (/HTTP Error 404/.test(msg))               return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
-        if (/Unable to extract/.test(msg))            return reject(new DownloadError("EXTRACT",   "Gagal ekstrak link."));
+        if (/Private|private video/i.test(msg))       return reject(new DownloadError("PRIVATE",   "Video bersifat privat."));
+        if (/not available|unavailable/i.test(msg))   return reject(new DownloadError("UNAVAIL",   "Video tidak tersedia."));
+        if (/age.restricted|age.limit/i.test(msg))    return reject(new DownloadError("AGE",       "Video dibatasi usia."));
+        if (/copyright|removed/i.test(msg))           return reject(new DownloadError("COPYRIGHT", "Video dihapus/copyright."));
+        if (/HTTP Error 404/i.test(msg))              return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
+        if (/Unable to extract/i.test(msg))           return reject(new DownloadError("EXTRACT",   "Gagal ekstrak link."));
 
         return reject(new DownloadError("GENERAL", msg.slice(0, 200)));
       }
       resolve(stdout);
     });
   });
-}
-
-class DownloadError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-  }
 }
 
 // ─── Download Task ────────────────────────────────────────────
@@ -174,11 +186,9 @@ async function downloadMedia({ url, type = "video", quality = "720p", userId }) 
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      // Sertakan platformKey agar buildCommand tahu apakah perlu cookies
       const cmd = buildCommand({ url, type, quality, outputPath, platformKey: platform.key });
-      await execAsync(cmd, attempt);
+      await execAsync(cmd);
 
-      // Validasi file ada & tidak terlalu besar
       if (!fs.existsSync(outputPath)) {
         throw new DownloadError("NO_FILE", "File tidak ditemukan setelah download.");
       }
@@ -193,12 +203,11 @@ async function downloadMedia({ url, type = "video", quality = "720p", userId }) 
 
     } catch (err) {
       lastErr = err;
-      // Jangan retry untuk error yang pasti
       const noRetry = ["PRIVATE", "AGE", "COPYRIGHT", "NOT_FOUND", "TOO_BIG"];
       if (noRetry.includes(err.code)) break;
 
       if (attempt <= MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, 2000 * attempt)); // backoff
+        await new Promise(r => setTimeout(r, 2000 * attempt));
       }
     }
   }
@@ -207,9 +216,8 @@ async function downloadMedia({ url, type = "video", quality = "720p", userId }) 
   throw lastErr || new DownloadError("GENERAL", "Download gagal.");
 }
 
-// ─── Ekstrak shortcode dari URL Instagram ─────────────────────
+// ─── Ekstrak shortcode Instagram ─────────────────────────────
 function extractInstagramShortcode(url) {
-  // Cocokkan /p/CODE, /reel/CODE, /tv/CODE
   const match = url.match(/\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
   return match ? match[2] : null;
 }
@@ -219,25 +227,19 @@ async function downloadPhotosInstagram({ url, userId }) {
   const shortcode = extractInstagramShortcode(url);
   if (!shortcode) throw new DownloadError("EXTRACT", "Shortcode Instagram tidak ditemukan.");
 
-  const timestamp  = Date.now();
-  const outDir     = path.join(DOWNLOAD_DIR, `ig_${userId}_${timestamp}`);
-  const igUser     = process.env.IG_USERNAME || "";
-
+  const igUser = config.download.igUsername;
   if (!igUser) throw new DownloadError("NO_CRED", "IG_USERNAME belum diset di .env");
 
-  // Pakai session yang sudah ada (hasil login manual sebelumnya)
+  const timestamp = Date.now();
+  const outDir    = path.join(DOWNLOAD_DIR, `ig_${userId}_${timestamp}`);
+
   const cmd = `instaloader --login ${igUser} --no-videos --no-metadata-json `
             + `--dirname-pattern "${outDir}" -- -${shortcode}`;
 
-  await new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 60_000 }, (err, stdout, stderr) => {
-      // instaloader kadang exit code non-0 tapi file tetap terdownload
-      // jadi kita cek file-nya langsung, bukan error code
-      resolve();
-    });
+  await new Promise((resolve) => {
+    exec(cmd, { timeout: 60_000 }, () => resolve());
   });
 
-  // Ambil semua .jpg hasil download
   if (!fs.existsSync(outDir)) throw new DownloadError("EXTRACT", "Folder output tidak ditemukan.");
 
   const files = fs.readdirSync(outDir)
@@ -254,13 +256,13 @@ async function downloadPhotosInstagram({ url, userId }) {
   }
 
   if (!photos.length) throw new DownloadError("TOO_BIG", "Semua foto terlalu besar (>49MB).");
-
   return photos;
 }
 
 // ─── Download Foto Twitter/Facebook/Reddit via yt-dlp ─────────
 async function downloadPhotosYtdlp({ url, userId }) {
-  const safeUrl   = `"${url.replace(/"/g, '')}"`;
+  const axios    = require("axios");
+  const safeUrl  = `"${url.replace(/"/g, "")}"`;
   const timestamp = Date.now();
   const platform  = detectPlatform(url);
   const cookies   = cookiesFlag(platform.key);
@@ -288,7 +290,6 @@ async function downloadPhotosYtdlp({ url, userId }) {
 
   if (!entries.length) throw new DownloadError("EXTRACT", "Tidak ada data foto.");
 
-  const axios  = require("axios");
   const photos = [];
 
   for (const entry of entries) {
@@ -306,7 +307,8 @@ async function downloadPhotosYtdlp({ url, userId }) {
     const outPath = path.join(DOWNLOAD_DIR, `${userId}_photo_${timestamp}_${photos.length}.jpg`);
     try {
       const res = await axios.get(imageUrl, {
-        responseType: "arraybuffer", timeout: 30_000,
+        responseType: "arraybuffer",
+        timeout: 30_000,
         headers: { "User-Agent": "Mozilla/5.0" },
       });
       fs.writeFileSync(outPath, res.data);
@@ -322,24 +324,21 @@ async function downloadPhotosYtdlp({ url, userId }) {
   return photos;
 }
 
-// ─── Router: pilih engine sesuai platform ─────────────────────
+// ─── Router foto ──────────────────────────────────────────────
 async function downloadPhotos({ url, userId }) {
   const platform = detectPlatform(url);
-
   if (platform.key === "instagram") {
     return downloadPhotosInstagram({ url, userId });
   }
-
-  // Twitter, Facebook, Reddit → pakai yt-dlp
   return downloadPhotosYtdlp({ url, userId });
 }
 
-
+// ─── Download Queue ───────────────────────────────────────────
 class DownloadQueue extends EventEmitter {
   constructor() {
     super();
-    this._queues = {};   // { userId: [ taskFn, ... ] }
-    this._active = {};   // { userId: boolean }
+    this._queues = {};
+    this._active = {};
     this._stats  = { total: 0, success: 0, failed: 0 };
   }
 
@@ -348,11 +347,7 @@ class DownloadQueue extends EventEmitter {
     this._queues[userId].push(taskFn);
     this._stats.total++;
     this._process(userId);
-
-    return {
-      position: this._queues[userId].length,
-      queuedAt: new Date(),
-    };
+    return { position: this._queues[userId].length, queuedAt: new Date() };
   }
 
   async _process(userId) {
@@ -371,21 +366,13 @@ class DownloadQueue extends EventEmitter {
       this.emit("error", { userId, err });
     } finally {
       this._active[userId] = false;
-      this._process(userId); // proses antrian berikutnya
+      this._process(userId);
     }
   }
 
-  queueLength(userId) {
-    return (this._queues[userId] || []).length;
-  }
-
-  isActive(userId) {
-    return !!this._active[userId];
-  }
-
-  getStats() {
-    return { ...this._stats };
-  }
+  queueLength(userId) { return (this._queues[userId] || []).length; }
+  isActive(userId)    { return !!this._active[userId]; }
+  getStats()          { return { ...this._stats }; }
 }
 
 const queue = new DownloadQueue();
@@ -398,4 +385,5 @@ module.exports = {
   cleanUp,
   queue,
   PLATFORMS,
+  DownloadError,
 };

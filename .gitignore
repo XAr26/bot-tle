@@ -24,3 +24,14 @@ npm-debug.log*
 
 # Runtime
 *.pid
+
+# Cookies — berisi session token, JANGAN push ke repo!
+cookies.txt
+
+# Database (jika ditambahkan nanti)
+*.db
+*.sqlite
+
+# Thumbnails temp
+src/thumbs/*
+!src/thumbs/.gitkeep
