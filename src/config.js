@@ -58,6 +58,11 @@ const config = {
     cookiesPlatforms: ["youtube", "instagram", "facebook", "twitter", "tiktok"],
   },
 
+  // Integration
+  pythonApi: {
+    url: process.env.PYTHON_API_URL || "http://localhost:8000",
+  },
+
   // Memory AI per user
   memory: {
     maxHistory: 12,

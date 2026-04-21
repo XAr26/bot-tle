@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-dotenv
+google-generative-ai
+yt-dlp
+instaloader
+requests
+aiohttp
+aiofiles
+python-multipart

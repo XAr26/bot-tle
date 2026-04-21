@@ -85,31 +85,48 @@ async function sendMetadataCard(bot, chatId, url, meta, platform, userId) {
 
 // ─── Link Detected ────────────────────────────────────────────
 async function handleLinkDetected(bot, chatId, userId, url) {
-  const platform = detectPlatform(url);
-  const wait     = await bot.sendMessage(chatId, `${platform.icon} Mengambil info...`);
-  const interval = startDots(bot, chatId, wait.message_id, `${platform.icon} Mengambil info`);
+  const wait     = await bot.sendMessage(chatId, "🔍 Mengambil info...");
+  const interval = startDots(bot, chatId, wait.message_id, "🔍 Mengambil info");
 
-  const meta = await fetchMetadata(url);
-  clearInterval(interval);
-  await bot.deleteMessage(chatId, wait.message_id).catch(() => {});
-  await sendMetadataCard(bot, chatId, url, meta, platform, userId);
-}
+  try {
+    const response = await axios.get(`${config.pythonApi.url}/download/info`, {
+      params: { url }
+    });
+    const meta = response.data;
+    
+    clearInterval(interval);
+    await bot.deleteMessage(chatId, wait.message_id).catch(() => {});
+    
+    const urlId    = store.storeUrl(url, userId);
+    const platform = detectPlatform(url); // Tetap pakai util lokal untuk icon
+    const hasPhoto = platformSupportsPhoto(platform.key);
 
-// ─── Error Map ────────────────────────────────────────────────
-const DOWNLOAD_ERROR_MAP = {
-  PRIVATE:       "🔒 Video privat. Bot tidak bisa mengakses video yang digembok.",
-  AGE:           "🔞 Video dibatasi usia (NSFW/Age-restricted).",
-  COPYRIGHT:     "⚖️ Video dihapus karena pelanggaran hak cipta.",
-  NOT_FOUND:     "🔍 Link tidak ditemukan atau sudah dihapus.",
-  UNAVAIL:       "❌ Video tidak tersedia di wilayah/negara ini.",
-  EXTRACT:       "⚠️ Gagal mengambil informasi video. Link mungkin salah atau situs sedang memblokir bot.",
-  NOT_INSTALLED: "⚙️ Mesin download (yt-dlp) bermasalah. Hubungi admin.",
-  TOO_BIG:       "📦 File melampaui batas 50MB (Limit Telegram). Coba kualitas lebih rendah atau download MP3 saja.",
-  GENERAL:       "❌ Download gagal. Coba lagi nanti atau gunakan link lain.",
-};
+    const caption =
+      `${platform.icon} *${meta.title}*\n\n` +
+      `👤 ${meta.uploader}\n` +
+      `⏱ Durasi: ${secondsToHMS(meta.duration || 0)}\n` +
+      `👁 Views: ${formatNumber(meta.viewCount || 0)}\n` +
+      `❤️ Likes: ${formatNumber(meta.likeCount || 0)}\n\n` +
+      `Pilih format download:`;
 
-function getErrorMessage(err) {
-  return DOWNLOAD_ERROR_MAP[err.code] || `❌ Error: ${err.message || 'Gagal download'}`;
+    if (meta.thumbnail) {
+      await bot.sendPhoto(chatId, meta.thumbnail, {
+        caption, parse_mode: "Markdown",
+        reply_markup: qualityKeyboard(urlId, hasPhoto),
+      });
+    } else {
+      await bot.sendMessage(chatId, caption, {
+        parse_mode: "Markdown", reply_markup: qualityKeyboard(urlId, hasPhoto),
+      });
+    }
+
+  } catch (err) {
+    clearInterval(interval);
+    console.error("🔴 Python API (Info) Error:", err.message);
+    await bot.editMessageText("❌ Gagal mengambil informasi link tersebut.", {
+      chat_id: chatId, message_id: wait.message_id,
+    }).catch(() => {});
+  }
 }
 
 // ─── Execute Download ─────────────────────────────────────────
@@ -124,35 +141,42 @@ async function executeDownload(bot, chatId, userId, url, type) {
   queue.enqueue(userId, async () => {
     interval = startDots(bot, chatId, statusMsg.message_id, "📥 Downloading");
 
-    const result = await downloadMedia({
-      url,
-      type:    type === "mp3" ? "mp3" : "video",
-      quality: type !== "mp3" ? type : "720p",
-      userId,
-    });
+    try {
+      const response = await axios.post(`${config.pythonApi.url}/download/execute`, {
+        url,
+        type:    type === "mp3" ? "mp3" : "video",
+        quality: type !== "mp3" ? type : "720p",
+        user_id: String(userId)
+      });
 
-    clearInterval(interval);
-    store.incBotStat("totalDownloads");
-    store.incStat(userId, "downloads");
+      const result = response.data;
+      clearInterval(interval);
 
-    await bot.editMessageText("📤 Mengirim file...", {
-      chat_id: chatId, message_id: statusMsg.message_id,
-    }).catch(() => {});
+      await bot.editMessageText("📤 Mengirim file...", {
+        chat_id: chatId, message_id: statusMsg.message_id,
+      }).catch(() => {});
 
-    const caption = `✅ Selesai! (${result.sizeMB} MB)`;
+      const caption = `✅ Selesai! (${result.size_mb} MB)`;
 
-    if (result.filePath.endsWith(".mp3")) {
-      await bot.sendAudio(chatId, result.filePath, { caption });
-    } else {
-      await bot.sendVideo(chatId, result.filePath, { caption, supports_streaming: true });
+      // result.file_path adalah path di server local
+      if (result.file_path.endsWith(".mp3")) {
+        await bot.sendAudio(chatId, result.file_path, { caption });
+      } else {
+        await bot.sendVideo(chatId, result.file_path, { caption, supports_streaming: true });
+      }
+
+      // Cleanup dilakukan di Python atau Node? Kita lakukan di Node agar aman.
+      cleanUp(result.file_path);
+      await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
+      return result;
+
+    } catch (err) {
+      clearInterval(interval);
+      console.error("🔴 Python API (Execute) Error:", err.message);
+      throw { code: "GENERAL", message: err.response?.data?.detail || err.message };
     }
-
-    cleanUp(result.filePath);
-    await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
-    return result;
   });
 
-  // FIX: gunakan once per enqueue, bukan global listener yang bisa bocor
   queue.once("error", async ({ userId: uid, err }) => {
     if (uid !== userId) return;
     clearInterval(interval);
@@ -174,59 +198,47 @@ async function executePhotoDownload(bot, chatId, userId, url) {
   queue.enqueue(userId, async () => {
     interval = startDots(bot, chatId, statusMsg.message_id, "🖼️ Mengambil foto");
 
-    const photos = await downloadPhotos({ url, userId });
-
-    clearInterval(interval);
-    store.incBotStat("totalDownloads");
-    store.incStat(userId, "downloads");
-
-    await bot.editMessageText(`📤 Mengirim ${photos.length} foto...`, {
-      chat_id: chatId, message_id: statusMsg.message_id,
-    }).catch(() => {});
-
-    if (photos.length === 1) {
-      await bot.sendPhoto(chatId, photos[0].filePath, {
-        caption: `✅ Foto berhasil! (${photos[0].sizeMB} MB)`,
+    try {
+      const response = await axios.get(`${config.pythonApi.url}/download/instagram`, {
+        params: { url, user_id: String(userId) }
       });
-      cleanUp(photos[0].filePath);
-      if (photos[0].tmpDir) fs.rmSync(photos[0].tmpDir, { recursive: true, force: true });
-    } else {
-      // Kirim sebagai album, max 10 per batch
-      const chunks = [];
-      for (let i = 0; i < photos.length; i += 10)
-        chunks.push(photos.slice(i, i + 10));
 
-      for (const [i, chunk] of chunks.entries()) {
-        const media = chunk.map((p, idx) => ({
+      const photos = response.data.photos;
+      clearInterval(interval);
+
+      await bot.editMessageText(`📤 Mengirim ${photos.length} foto...`, {
+        chat_id: chatId, message_id: statusMsg.message_id,
+      }).catch(() => {});
+
+      if (photos.length === 1) {
+        await bot.sendPhoto(chatId, photos[0].file_path, {
+          caption: `✅ Foto berhasil! (${photos[0].size_mb} MB)`,
+        });
+        cleanUp(photos[0].file_path);
+      } else {
+        const media = photos.map((p, idx) => ({
           type:  "photo",
-          media: p.filePath,
-          ...(i === 0 && idx === 0 ? { caption: `✅ ${photos.length} foto berhasil didownload!` } : {}),
+          media: p.file_path,
+          ...(idx === 0 ? { caption: `✅ ${photos.length} foto berhasil didownload!` } : {}),
         }));
         await bot.sendMediaGroup(chatId, media);
-        chunk.forEach(p => cleanUp(p.filePath));
+        photos.forEach(p => cleanUp(p.file_path));
       }
-      if (photos[0]?.tmpDir) fs.rmSync(photos[0].tmpDir, { recursive: true, force: true });
+
+      await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
+      return photos;
+
+    } catch (err) {
+      clearInterval(interval);
+      console.error("🔴 Python API (IG) Error:", err.message);
+      throw { code: "GENERAL", message: err.response?.data?.detail || err.message };
     }
-
-    await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
-    return photos;
   });
-
-  const PHOTO_ERROR_MAP = {
-    NO_CRED:   "⚙️ `IG_USERNAME` belum diset di file `.env`",
-    LOGIN:     "🔐 Sesi login Instagram expired.\nJalankan ulang: `instaloader --login USERNAME`",
-    PRIVATE:   "🔒 Konten privat, tidak bisa didownload.",
-    NOT_FOUND: "🔍 Link tidak ditemukan.",
-    GENERAL:   "❌ Gagal download foto.",
-  };
 
   queue.once("error", async ({ userId: uid, err }) => {
     if (uid !== userId) return;
     clearInterval(interval);
-    const msg = err.code === "EXTRACT"
-      ? `⚠️ ${err.message}`
-      : (PHOTO_ERROR_MAP[err.code] || PHOTO_ERROR_MAP.GENERAL);
-    await bot.editMessageText(msg, {
+    await bot.editMessageText(getErrorMessage(err), {
       chat_id: chatId, message_id: statusMsg.message_id,
     }).catch(() => {});
   });
