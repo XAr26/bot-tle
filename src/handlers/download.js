@@ -109,6 +109,7 @@ const DOWNLOAD_ERROR_MAP = {
 
 function getErrorMessage(err) {
   if (err.code === "TOO_BIG") return `📦 ${err.message}`;
+  if (err.code === "GENERAL") return `❌ ${err.message}`;
   return DOWNLOAD_ERROR_MAP[err.code] || DOWNLOAD_ERROR_MAP.GENERAL;
 }
 

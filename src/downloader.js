@@ -187,7 +187,7 @@ function execAsync(cmd) {
         if (/not available|unavailable/i.test(msg))   return reject(new DownloadError("UNAVAIL",   "Video tidak tersedia."));
         if (/age.restricted|age.limit/i.test(msg))    return reject(new DownloadError("AGE",       "Video dibatasi usia."));
         if (/copyright|removed/i.test(msg))           return reject(new DownloadError("COPYRIGHT", "Video dihapus/copyright."));
-        return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
+        if (/HTTP Error 404/i.test(msg))              return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
         if (/Unable to extract/i.test(msg))           return reject(new DownloadError("EXTRACT",   "Gagal ekstrak link."));
 
         return reject(new DownloadError("GENERAL", `Download gagal: ${msg.slice(0, 150)}`));
