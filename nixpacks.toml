@@ -1,10 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "python3Packages.pip", "ffmpeg"]
+nixPkgs = ["nodejs_20", "python3", "ffmpeg", "uv"]
 
 [phases.install]
 cmds = [
   "npm install",
-  "pip install --upgrade yt-dlp instaloader"
+  "uv tool install yt-dlp",
+  "uv tool install instaloader"
 ]
 
 [start]

@@ -1,0 +1,12 @@
+# Alternatif kalau uv tidak work — pakai python3 -m pip langsung
+[phases.setup]
+nixPkgs = ["nodejs_20", "python3", "ffmpeg"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "python3 -m pip install --user --upgrade yt-dlp instaloader"
+]
+
+[start]
+cmd = "node src/index.js"
