@@ -50,7 +50,7 @@ const { maxFileMB: MAX_FILE_MB, execTimeout: EXEC_TIMEOUT, maxRetries: MAX_RETRI
 function cookiesFlag(platformKey) {
   if (!config.download.cookiesPlatforms.includes(platformKey)) return "";
 
-  // Prioritas: COOKIES_PATH dari env → default root project
+  // 1. Prioritas: File cookies.txt (Paling stabil untuk server)
   const candidates = [
     config.download.cookiesPath,
     path.join(__dirname, "..", "cookies.txt"),
@@ -58,6 +58,11 @@ function cookiesFlag(platformKey) {
 
   for (const p of candidates) {
     if (fs.existsSync(p)) return `--cookies "${p}"`;
+  }
+
+  // 2. Fallback: Browser cookies (Untuk lokal, misal --cookies-from-browser vivaldi)
+  if (config.download.cookiesBrowser) {
+    return `--cookies-from-browser ${config.download.cookiesBrowser}`;
   }
 
   return "";

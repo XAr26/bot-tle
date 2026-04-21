@@ -43,9 +43,10 @@ const config = {
     execTimeout:  3 * 60_000, // 3 menit per download
     maxRetries:   2,
     cookiesPath:  process.env.COOKIES_PATH || null,
+    cookiesBrowser: process.env.COOKIES_BROWSER || null,
     igUsername:   process.env.IG_USERNAME  || null,
     // Platform yang butuh cookies
-    cookiesPlatforms: ["instagram", "facebook", "twitter"],
+    cookiesPlatforms: ["youtube", "instagram", "facebook", "twitter", "tiktok"],
   },
 
   // Memory AI per user
