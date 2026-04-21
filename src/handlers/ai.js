@@ -3,11 +3,18 @@
 // ============================================================
 "use strict";
 
-const axios = require("axios");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios  = require("axios");
 const config = require("../config");
 const store  = require("../store");
 const { startDots } = require("../utils");
+
+// FIX: Safe require — jangan crash kalau package belum diinstall
+let GoogleGenerativeAI = null;
+try {
+  GoogleGenerativeAI = require("@google/generative-ai").GoogleGenerativeAI;
+} catch {
+  console.warn("⚠️  @google/generative-ai belum diinstall. Gemini tidak aktif, pakai Ollama.");
+}
 
 /**
  * Handle AI chat using Gemini (Primary) or Ollama (Fallback).
@@ -20,61 +27,82 @@ async function handleAI(bot, chatId, userId, text) {
   const wait     = await bot.sendMessage(chatId, "🤔 mikir.");
   const interval = startDots(bot, chatId, wait.message_id, "🤔 mikir");
 
-  // Prompt System
-  const systemInstruction = 
+  const systemInstruction =
     "Kamu adalah asisten AI di dalam bot Telegram. " +
     "Jawab dalam bahasa Indonesia santai, singkat (maks 4 kalimat), boleh pakai emoji. " +
     "Tolak pertanyaan berbahaya dengan sopan.";
 
-  const history = store.getFormattedHistory(userId);
-  const fullPrompt = `${systemInstruction}\n\nRiwayat Percakapan:\n${history}\n\nUser: ${text}\nAI:`;
+  const history     = store.getFormattedHistory(userId);
+  const fullPrompt  = `${systemInstruction}\n\nRiwayat Percakapan:\n${history}\n\nUser: ${text}\nAI:`;
 
-  // --- OPSI 1: Google Gemini (Jika API Key ada) ---
-  if (config.gemini.apiKey) {
+  // ── OPSI 1: Google Gemini ──────────────────────────────────
+  if (config.gemini.apiKey && GoogleGenerativeAI) {
     try {
       const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
       const model = genAI.getGenerativeModel({ model: config.gemini.model });
 
-      const result = await model.generateContentStream(fullPrompt);
+      // FIX: generateContentStream pakai format konten yang benar
+      const result = await model.generateContentStream([
+        { text: fullPrompt }
+      ]);
+
       clearInterval(interval);
 
-      let fullResponse = "", lastSent = "";
+      let fullResponse = "", lastLen = 0;
 
       for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
+        // FIX: cek chunk.text adalah fungsi sebelum dipanggil
+        const chunkText = typeof chunk.text === "function" ? chunk.text() : "";
         fullResponse += chunkText;
 
-        // Edit pesan per 30 karakter agar tidak spam API Telegram
-        if (fullResponse.length - lastSent.length > 30) {
-          lastSent = fullResponse;
+        if (fullResponse.length - lastLen > 30 && fullResponse.trim()) {
+          lastLen = fullResponse.length;
           await bot.editMessageText(fullResponse, {
-            chat_id: chatId, message_id: wait.message_id
+            chat_id: chatId, message_id: wait.message_id,
           }).catch(() => {});
         }
       }
 
       const final = fullResponse.trim() || "❓ Maaf, saya tidak bisa menjawab itu.";
       await bot.editMessageText(final, {
-        chat_id: chatId, message_id: wait.message_id
+        chat_id: chatId, message_id: wait.message_id,
       }).catch(() => {});
 
       store.pushMemory(userId, "assistant", final);
       return;
 
     } catch (err) {
+      clearInterval(interval);
       console.error("🔴 Gemini Error:", err.message);
-      // Jika Gemini gagal, lanjut ke Ollama di bawah
+
+      // Terjemahkan error Gemini yang umum
+      if (/API_KEY_INVALID|API key not valid/i.test(err.message)) {
+        await bot.editMessageText("❌ Gemini API Key tidak valid. Cek GEMINI_API_KEY di .env", {
+          chat_id: chatId, message_id: wait.message_id,
+        }).catch(() => {});
+        return;
+      }
+
+      if (/quota|RESOURCE_EXHAUSTED/i.test(err.message)) {
+        await bot.editMessageText("⚠️ Gemini quota habis, beralih ke AI cadangan...", {
+          chat_id: chatId, message_id: wait.message_id,
+        }).catch(() => {});
+        // Lanjut ke Ollama
+      } else {
+        // Error lain → coba Ollama
+        console.warn("Gemini gagal, fallback ke Ollama:", err.message);
+      }
     }
   }
 
-  // --- OPSI 2: Ollama (Fallback) ---
+  // ── OPSI 2: Ollama (Fallback) ──────────────────────────────
   try {
     const res = await axios.post(
       `${config.ollama.url}/api/generate`,
       {
         model:   config.ollama.model,
         prompt:  fullPrompt,
-        stream:  false, // Non-stream untuk fallback agar lebih stabil
+        stream:  false,
         options: {
           num_predict: config.ollama.maxTokens,
           temperature: config.ollama.temperature,
@@ -85,7 +113,7 @@ async function handleAI(bot, chatId, userId, text) {
 
     clearInterval(interval);
     const final = res.data.response?.trim() || "❓ Tidak ada jawaban.";
-    
+
     await bot.editMessageText(final, {
       chat_id: chatId, message_id: wait.message_id,
     }).catch(() => {});
@@ -95,8 +123,11 @@ async function handleAI(bot, chatId, userId, text) {
   } catch (err) {
     clearInterval(interval);
     let msg = "❌ AI sedang tidak bisa diakses.";
-    if (err.code === "ECONNREFUSED") msg = "❌ AI Server (Ollama) mati & Gemini API Key belum diset.";
-    
+    if (err.code === "ECONNREFUSED")
+      msg = "❌ Ollama tidak berjalan & Gemini belum diset.\n\nJalankan: `ollama serve`";
+    else if (err.code === "ETIMEDOUT")
+      msg = "⏰ AI timeout, coba lagi.";
+
     await bot.editMessageText(msg, {
       chat_id: chatId, message_id: wait.message_id,
     }).catch(() => {});

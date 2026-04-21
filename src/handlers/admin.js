@@ -4,8 +4,9 @@
 "use strict";
 
 const { exec } = require("child_process");
-const fs = require("fs");
+const fs   = require("fs");
 const path = require("path");
+const config             = require("../config");          // ← FIX: was missing
 const { YT_DLP_BIN, DOWNLOAD_DIR } = require("../downloader");
 
 /**

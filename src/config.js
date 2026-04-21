@@ -30,8 +30,10 @@ const config = {
   // Gemini AI (Prioritas Utama)
   gemini: {
     // Mendukung variasi nama variabel (GEMINI_API_KEY atau Gemini_Api_Key)
-    apiKey:      process.env.GEMINI_API_KEY || process.env.Gemini_Api_Key || null,
-    model:       process.env.GEMINI_MODEL   || "gemini-1.5-flash",
+    apiKey: process.env.GEMINI_API_KEY || process.env.Gemini_Api_Key || null,
+    // FIX: gemini-1.0-pro sudah deprecated sejak Feb 2025
+    // Gunakan gemini-1.5-flash (cepat & gratis tier tersedia)
+    model:  process.env.GEMINI_MODEL || "gemini-1.5-flash",
   },
 
   // Ollama AI (Cadangan)

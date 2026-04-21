@@ -213,8 +213,19 @@ function execAsync(cmd) {
 async function downloadMedia({ url, type = "video", quality = "720p", userId }) {
   const platform   = detectPlatform(url);
   const timestamp  = Date.now();
-  const ext        = (type === "mp3" || type === "audio") ? "mp3" : "mp4";
+  const isAudio    = (type === "mp3" || type === "audio");
+  const ext        = isAudio ? "mp3" : "mp4";
   const outputPath = path.join(DOWNLOAD_DIR, `${userId}_${timestamp}.${ext}`);
+
+  // FIX: yt-dlp kadang output ekstensi berbeda (.webm, .mkv)
+  // Cari file dengan nama prefix yang sama setelah download
+  function findActualOutput() {
+    const prefix = `${userId}_${timestamp}`;
+    const files  = fs.readdirSync(DOWNLOAD_DIR)
+      .filter(f => f.startsWith(prefix))
+      .map(f => path.join(DOWNLOAD_DIR, f));
+    return files.length ? files[0] : null;
+  }
 
   let lastErr = null;
 
@@ -223,21 +234,24 @@ async function downloadMedia({ url, type = "video", quality = "720p", userId }) 
       const cmd = buildCommand({ url, type, quality, outputPath, platformKey: platform.key });
       await execAsync(cmd);
 
-      if (!fs.existsSync(outputPath)) {
+      // FIX: cari file output yang sebenarnya (bisa beda ekstensi)
+      const actualPath = fs.existsSync(outputPath) ? outputPath : findActualOutput();
+
+      if (!actualPath) {
         throw new DownloadError("NO_FILE", "File tidak ditemukan setelah download.");
       }
 
-      const sizeMB = fileSizeMB(outputPath);
+      const sizeMB = fileSizeMB(actualPath);
       if (sizeMB > MAX_FILE_MB) {
-        cleanUp(outputPath);
+        cleanUp(actualPath);
         throw new DownloadError("TOO_BIG", `File terlalu besar (${sizeMB.toFixed(1)} MB). Coba kualitas lebih rendah.`);
       }
 
-      return { filePath: outputPath, platform, sizeMB: sizeMB.toFixed(1) };
+      return { filePath: actualPath, platform, sizeMB: sizeMB.toFixed(1) };
 
     } catch (err) {
       lastErr = err;
-      const noRetry = ["PRIVATE", "AGE", "COPYRIGHT", "NOT_FOUND", "TOO_BIG"];
+      const noRetry = ["PRIVATE", "AGE", "COPYRIGHT", "NOT_FOUND", "TOO_BIG", "NOT_INSTALLED"];
       if (noRetry.includes(err.code)) break;
 
       if (attempt <= MAX_RETRIES) {
