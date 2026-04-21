@@ -7,10 +7,18 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
-  "keywords": ["telegram", "bot", "downloader", "ai", "ollama", "yt-dlp"],
+  "keywords": [
+    "telegram",
+    "bot",
+    "downloader",
+    "ai",
+    "ollama",
+    "yt-dlp"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.66.0"

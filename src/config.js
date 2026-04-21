@@ -6,7 +6,7 @@
 require("dotenv").config();
 
 // ─── Required ENV ─────────────────────────────────────────────
-const REQUIRED = ["BOT_TOKEN", "OLLAMA_URL", "OLLAMA_MODEL"];
+const REQUIRED = ["BOT_TOKEN"];
 for (const key of REQUIRED) {
   if (!process.env[key]) {
     console.error(`❌  Missing ENV: ${key}`);
@@ -27,12 +27,18 @@ const config = {
     privateOnly: true,
   },
 
-  // Ollama AI
+  // Gemini AI (Prioritas Utama)
+  gemini: {
+    apiKey:      process.env.GEMINI_API_KEY || null,
+    model:       process.env.GEMINI_MODEL   || "gemini-1.5-flash",
+  },
+
+  // Ollama AI (Cadangan)
   ollama: {
-    url:         process.env.OLLAMA_URL,
-    model:       process.env.OLLAMA_MODEL,
+    url:         process.env.OLLAMA_URL     || "http://localhost:11434",
+    model:       process.env.OLLAMA_MODEL   || "phi3",
     timeout:     45_000,
-    maxTokens:   150,
+    maxTokens:   1024,
     temperature: 0.7,
     topP:        0.9,
   },

@@ -33,15 +33,22 @@ async function handleTestEnv(bot, chatId) {
   // 1. Check Node & OS
   results.push(`💻 *Node:* ${process.version} (${process.platform})`);
 
-  // 2. Check yt-dlp
+  // 2. Check Gemini
+  if (config.gemini.apiKey) {
+    results.push("✅ *Gemini:* API Key terpasang");
+  } else {
+    results.push("⚠️ *Gemini:* API Key belum diset (Pakai Ollama)");
+  }
+
+  // 3. Check yt-dlp
   const ytdlp = await execP(`${YT_DLP_BIN} --version`);
   results.push(`${ytdlp.ok ? "✅" : "❌"} *yt-dlp:* ${ytdlp.out || "Error"}`);
 
-  // 3. Check ffmpeg
+  // 4. Check ffmpeg
   const ffmpeg = await execP("ffmpeg -version");
   results.push(`${ffmpeg.ok ? "✅" : "❌"} *ffmpeg:* ${ffmpeg.ok ? "Terpasang" : "Tidak ditemukan"}`);
 
-  // 4. Check Python
+  // 5. Check Python
   const py = await execP("python3 --version");
   results.push(`${py.ok ? "✅" : "❌"} *Python:* ${py.out || "Error"}`);
 
