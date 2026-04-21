@@ -9,6 +9,8 @@ const path             = require("path");
 const { EventEmitter } = require("events");
 const config           = require("./config");
 
+const YT_DLP_BIN = process.env.YT_DLP_PATH || "yt-dlp";
+
 // ─── Direktori ───────────────────────────────────────────────
 const DOWNLOAD_DIR = path.join(__dirname, "downloads");
 const THUMB_DIR    = path.join(__dirname, "thumbs");
@@ -18,12 +20,12 @@ for (const dir of [DOWNLOAD_DIR, THUMB_DIR]) {
 }
 
 // ─── Cek yt-dlp tersedia saat startup ────────────────────────
-exec("which yt-dlp || command -v yt-dlp", (err, stdout) => {
+exec(`which ${YT_DLP_BIN} || command -v ${YT_DLP_BIN}`, (err, stdout) => {
   if (err || !stdout.trim()) {
-    console.error("⚠️  yt-dlp tidak ditemukan di PATH! Download tidak akan berfungsi.");
+    console.error(`⚠️  ${YT_DLP_BIN} tidak ditemukan di PATH! Download tidak akan berfungsi.`);
     console.error("    PATH saat ini:", process.env.PATH);
   } else {
-    console.log("✅ yt-dlp ditemukan di:", stdout.trim());
+    console.log(`✅ ${YT_DLP_BIN} ditemukan di:`, stdout.trim());
   }
 });
 
@@ -85,17 +87,17 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
   const cookies = cookiesFlag(platformKey);
 
   if (type === "mp3" || type === "audio") {
-    return `yt-dlp ${noList} ${noWarn} ${cookies} -x --audio-format mp3 --audio-quality 0 -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -x --audio-format mp3 --audio-quality 0 -o ${out} ${safeUrl}`;
   }
 
   if (type === "thumbnail") {
-    return `yt-dlp ${noList} ${noWarn} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
   }
 
   // FIX: type "photo" seharusnya download semua gambar dari post,
   // bukan --skip-download. Gunakan format terbaik yang tersedia.
   if (type === "photo") {
-    return `yt-dlp ${noList} ${noWarn} ${cookies} -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -o ${out} ${safeUrl}`;
   }
 
   // Video — pilih resolusi
@@ -108,7 +110,7 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
   };
 
   const fmt = qualityMap[quality] || qualityMap["720p"];
-  return `yt-dlp ${noList} ${noWarn} ${cookies} -f "${fmt}" --merge-output-format mp4 -o ${out} ${safeUrl}`;
+  return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -f "${fmt}" --merge-output-format mp4 -o ${out} ${safeUrl}`;
 }
 
 // ─── Metadata Fetcher ─────────────────────────────────────────
@@ -119,7 +121,7 @@ async function fetchMetadata(url) {
 
   return new Promise((resolve) => {
     exec(
-      `yt-dlp --no-warnings --dump-json --no-playlist ${cookies} ${safeUrl}`,
+      `${YT_DLP_BIN} --no-warnings --dump-json --no-playlist ${cookies} ${safeUrl}`,
       { timeout: 20_000 },
       (err, stdout) => {
         if (err || !stdout) return resolve(null);
@@ -185,10 +187,10 @@ function execAsync(cmd) {
         if (/not available|unavailable/i.test(msg))   return reject(new DownloadError("UNAVAIL",   "Video tidak tersedia."));
         if (/age.restricted|age.limit/i.test(msg))    return reject(new DownloadError("AGE",       "Video dibatasi usia."));
         if (/copyright|removed/i.test(msg))           return reject(new DownloadError("COPYRIGHT", "Video dihapus/copyright."));
-        if (/HTTP Error 404/i.test(msg))              return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
+        return reject(new DownloadError("NOT_FOUND", "Link tidak ditemukan."));
         if (/Unable to extract/i.test(msg))           return reject(new DownloadError("EXTRACT",   "Gagal ekstrak link."));
 
-        return reject(new DownloadError("GENERAL", msg.slice(0, 200)));
+        return reject(new DownloadError("GENERAL", `Download gagal: ${msg.slice(0, 150)}`));
       }
       resolve(stdout);
     });
@@ -289,11 +291,11 @@ async function downloadPhotosYtdlp({ url, userId }) {
 
   const metaRaw = await new Promise((resolve, reject) => {
     exec(
-      `yt-dlp --no-warnings --dump-json --no-playlist ${cookies} ${safeUrl}`,
+      `${YT_DLP_BIN} --no-warnings --dump-json --no-playlist ${cookies} ${safeUrl}`,
       { timeout: 20_000 },
       (err, stdout, stderr) => {
         if (err || !stdout) {
-          const msg = stderr || "";
+          const msg = stderr || err.message || "";
           if (/login|checkpoint|not logged in/i.test(msg))
             return reject(new DownloadError("LOGIN", "Perlu login browser dulu."));
           return reject(new DownloadError("EXTRACT", "Gagal ambil data foto."));
