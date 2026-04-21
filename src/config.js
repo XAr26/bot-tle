@@ -29,7 +29,8 @@ const config = {
 
   // Gemini AI (Prioritas Utama)
   gemini: {
-    apiKey:      process.env.GEMINI_API_KEY || null,
+    // Mendukung variasi nama variabel (GEMINI_API_KEY atau Gemini_Api_Key)
+    apiKey:      process.env.GEMINI_API_KEY || process.env.Gemini_Api_Key || null,
     model:       process.env.GEMINI_MODEL   || "gemini-1.5-flash",
   },
 
