@@ -79,7 +79,7 @@ const PLATFORMS = {
   spotify:    { regex: /open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/, label: "Spotify", icon: "🎵" },
   reddit:     { regex: /(?:www\.|v\.)?reddit\.com\/r\/[A-Za-z0-9_]+\/comments\/([A-Za-z0-9]+)|redd\.it\/([A-Za-z0-9]+)/, label: "Reddit", icon: "🤖" },
   twitch:     { regex: /(?:www\.)?twitch\.tv\/(?:videos\/[0-9]+|[A-Za-z0-9_]+)/, label: "Twitch", icon: "🎮" },
-  generic:    { regex: /https?:\/\/[^\s]+/, label: "Generic", icon: "🌐" },
+  generic:    { regex: /https?:\/\/[^\s]+|[a-zA-Z0-9.-]+\.[a-z]{2,}\/[^\s]*/, label: "Generic", icon: "🌐" },
 };
 
 function detectPlatform(url) {
@@ -113,12 +113,12 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
     return `${YT_DLP_BIN} ${noList} ${noWarn} ${ua} ${cookies} -o ${out} ${safeUrl}`;
   }
 
-  // Video — pilih resolusi
+  // Video — pilih resolusi (dengan fallback ke yang tersedia)
   const qualityMap = {
-    "360p":  "bestvideo[height<=360]+bestaudio/best[height<=360]",
-    "480p":  "bestvideo[height<=480]+bestaudio/best[height<=480]",
-    "720p":  "bestvideo[height<=720]+bestaudio/best[height<=720]",
-    "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "360p":  "bestvideo[height<=360]+bestaudio/best[height<=360]/best",
+    "480p":  "bestvideo[height<=480]+bestaudio/best[height<=480]/best",
+    "720p":  "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+    "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
     "best":  "bestvideo+bestaudio/best",
   };
 

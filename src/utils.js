@@ -9,7 +9,18 @@ const config = require("./config");
  * Cek apakah string adalah URL valid.
  */
 function isURL(str) {
-  try { new URL(str); return true; } catch { return false; }
+  try {
+    new URL(str);
+    return true;
+  } catch {
+    try {
+      // Jika gagal, coba tambahkan https:// (untuk kasus youtube.com saja)
+      new URL("https://" + str);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /**

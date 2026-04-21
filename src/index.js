@@ -30,16 +30,19 @@ console.log(`👑 Admin IDs: ${config.bot.adminIds.join(", ") || "tidak ada"}`);
 // ─── URL Support Check ────────────────────────────────────────
 function isSupportedURL(str) {
   if (!isURL(str)) return false;
-  // Cari apakah link cocok dengan salah satu regex platform (selain generic)
+  
+  // Jika platform spesifik ditemukan, log it
   const entry = Object.entries(PLATFORMS)
     .filter(([k]) => k !== "generic")
     .find(([, p]) => p.regex.test(str));
     
   if (entry) {
     console.log(`[link] Terdeteksi platform: ${entry[0]}`);
-    return true;
+  } else {
+    console.log(`[link] Menggunakan fallback generic untuk: ${str}`);
   }
-  return false;
+  
+  return true; // Selalu true jika asalkan isURL valid
 }
 
 // ─── Keyboards ────────────────────────────────────────────────
@@ -199,11 +202,16 @@ bot.on("message", async (msg) => {
 
   // URL → download flow
   if (isURL(text)) {
-    if (!isSupportedURL(text))
-      return bot.sendMessage(chatId,
-        "⚠️ Platform tidak didukung.\n\nYang didukung: YouTube, Instagram, TikTok, Twitter/X, Facebook, Reddit, Twitch."
-      );
-    return handleLinkDetected(bot, chatId, userId, text);
+    let finalUrl = text;
+    if (!text.startsWith("http")) {
+      finalUrl = "https://" + text;
+    }
+
+    if (!isSupportedURL(finalUrl)) {
+      return bot.sendMessage(chatId, "⚠️ Link tidak valid.");
+    }
+    
+    return handleLinkDetected(bot, chatId, userId, finalUrl);
   }
 
   // Teks biasa → AI

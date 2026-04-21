@@ -97,20 +97,19 @@ async function handleLinkDetected(bot, chatId, userId, url) {
 
 // ─── Error Map ────────────────────────────────────────────────
 const DOWNLOAD_ERROR_MAP = {
-  PRIVATE:       "🔒 Video privat.",
-  AGE:           "🔞 Video dibatasi usia.",
-  COPYRIGHT:     "⚖️ Video kena copyright.",
-  NOT_FOUND:     "🔍 Link tidak ditemukan.",
-  UNAVAIL:       "❌ Video tidak tersedia.",
-  EXTRACT:       "⚠️ Gagal ekstrak link.",
-  NOT_INSTALLED: "⚙️ yt-dlp belum terinstall di server. Hubungi admin.",
-  GENERAL:       "❌ Download gagal.",
+  PRIVATE:       "🔒 Video privat. Bot tidak bisa mengakses video yang digembok.",
+  AGE:           "🔞 Video dibatasi usia (NSFW/Age-restricted).",
+  COPYRIGHT:     "⚖️ Video dihapus karena pelanggaran hak cipta.",
+  NOT_FOUND:     "🔍 Link tidak ditemukan atau sudah dihapus.",
+  UNAVAIL:       "❌ Video tidak tersedia di wilayah/negara ini.",
+  EXTRACT:       "⚠️ Gagal mengambil informasi video. Link mungkin salah atau situs sedang memblokir bot.",
+  NOT_INSTALLED: "⚙️ Mesin download (yt-dlp) bermasalah. Hubungi admin.",
+  TOO_BIG:       "📦 File melampaui batas 50MB (Limit Telegram). Coba kualitas lebih rendah atau download MP3 saja.",
+  GENERAL:       "❌ Download gagal. Coba lagi nanti atau gunakan link lain.",
 };
 
 function getErrorMessage(err) {
-  if (err.code === "TOO_BIG") return `📦 ${err.message}`;
-  if (err.code === "GENERAL") return `❌ ${err.message}`;
-  return DOWNLOAD_ERROR_MAP[err.code] || DOWNLOAD_ERROR_MAP.GENERAL;
+  return DOWNLOAD_ERROR_MAP[err.code] || `❌ Error: ${err.message || 'Gagal download'}`;
 }
 
 // ─── Execute Download ─────────────────────────────────────────
