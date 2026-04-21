@@ -41,29 +41,39 @@ async function handleAI(bot, chatId, userId, text) {
       const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
       const model = genAI.getGenerativeModel({ model: config.gemini.model });
 
-      // FIX: generateContentStream pakai format konten yang benar
-      const result = await model.generateContentStream([
-        { text: fullPrompt }
-      ]);
+      // FIX: Gunakan format prompt yang lebih standar untuk SDK v0.x
+      const result = await model.generateContentStream({
+        contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      });
 
       clearInterval(interval);
 
       let fullResponse = "", lastLen = 0;
 
       for await (const chunk of result.stream) {
-        // FIX: cek chunk.text adalah fungsi sebelum dipanggil
-        const chunkText = typeof chunk.text === "function" ? chunk.text() : "";
-        fullResponse += chunkText;
+        try {
+          // FIX: Ambil teks dengan lebih aman dari candidates jika text() gagal
+          let chunkText = "";
+          if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]?.text) {
+            chunkText = chunk.candidates[0].content.parts[0].text;
+          } else if (typeof chunk.text === "function") {
+            chunkText = chunk.text();
+          }
+          
+          fullResponse += chunkText;
 
-        if (fullResponse.length - lastLen > 30 && fullResponse.trim()) {
-          lastLen = fullResponse.length;
-          await bot.editMessageText(fullResponse, {
-            chat_id: chatId, message_id: wait.message_id,
-          }).catch(() => {});
+          if (fullResponse.length - lastLen > 40 && fullResponse.trim()) {
+            lastLen = fullResponse.length;
+            await bot.editMessageText(fullResponse, {
+              chat_id: chatId, message_id: wait.message_id,
+            }).catch(() => {});
+          }
+        } catch (streamErr) {
+          console.warn("⚠️ Stream chunk error (safety filter?):", streamErr.message);
         }
       }
 
-      const final = fullResponse.trim() || "❓ Maaf, saya tidak bisa menjawab itu.";
+      const final = fullResponse.trim() || "❓ Maaf, saya tidak bisa mejawab itu (mungkin terkena filter keamanan).";
       await bot.editMessageText(final, {
         chat_id: chatId, message_id: wait.message_id,
       }).catch(() => {});

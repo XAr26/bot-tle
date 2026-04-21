@@ -30,9 +30,16 @@ console.log(`👑 Admin IDs: ${config.bot.adminIds.join(", ") || "tidak ada"}`);
 // ─── URL Support Check ────────────────────────────────────────
 function isSupportedURL(str) {
   if (!isURL(str)) return false;
-  return Object.entries(PLATFORMS)
+  // Cari apakah link cocok dengan salah satu regex platform (selain generic)
+  const entry = Object.entries(PLATFORMS)
     .filter(([k]) => k !== "generic")
-    .some(([, p]) => p.regex.test(str));
+    .find(([, p]) => p.regex.test(str));
+    
+  if (entry) {
+    console.log(`[link] Terdeteksi platform: ${entry[0]}`);
+    return true;
+  }
+  return false;
 }
 
 // ─── Keyboards ────────────────────────────────────────────────
@@ -181,6 +188,8 @@ bot.on("message", async (msg) => {
 
   store.trackUser(userId, msg.from.username);
   store.incBotStat("totalMessages");
+
+  console.log(`[msg] From: ${userId} | Text: ${text.slice(0, 50)}${text.length > 50 ? "..." : ""}`);
 
   // Keyboard shortcuts
   if (text === "📊 Stats Saya")    return bot.emit("text", Object.assign(msg, { text: "/mystats" }));

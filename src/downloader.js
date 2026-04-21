@@ -70,16 +70,16 @@ function cookiesFlag(platformKey) {
 
 // ─── Platform Detection ──────────────────────────────────────
 const PLATFORMS = {
-  youtube:    { regex: /youtube\.com|youtu\.be/,           label: "YouTube",    icon: "🎬" },
-  instagram:  { regex: /instagram\.com/,                    label: "Instagram",  icon: "📸" },
-  tiktok:     { regex: /tiktok\.com|vm\.tiktok/,           label: "TikTok",     icon: "🎵" },
-  twitter:    { regex: /twitter\.com|x\.com/,              label: "Twitter/X",  icon: "🐦" },
-  facebook:   { regex: /facebook\.com|fb\.watch|fb\.com/,  label: "Facebook",   icon: "👤" },
-  soundcloud: { regex: /soundcloud\.com/,                  label: "SoundCloud", icon: "🎧" },
-  spotify:    { regex: /open\.spotify\.com/,               label: "Spotify",    icon: "🎵" },
-  reddit:     { regex: /reddit\.com|redd\.it/,             label: "Reddit",     icon: "🤖" },
-  twitch:     { regex: /twitch\.tv/,                       label: "Twitch",     icon: "🎮" },
-  generic:    { regex: /.*/,                               label: "Generic",    icon: "🌐" },
+  youtube:    { regex: /(?:youtube\.com|youtu\.be)\/(?:watch\?v=|shorts\/|live\/|embed\/|v\/|.*[?&]v=)?([^"&?\/\s]{11})/, label: "YouTube", icon: "🎬" },
+  instagram:  { regex: /(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)/, label: "Instagram", icon: "📸" },
+  tiktok:     { regex: /(?:www\.|vm\.|vt\.)?tiktok\.com\/.*(?:video|v|t|@.*\/video)\/([0-9]+)|(?:vm\.|vt\.)tiktok\.com\/([A-Za-z0-9]+)/, label: "TikTok", icon: "🎵" },
+  twitter:    { regex: /(?:twitter\.com|x\.com)\/[A-Za-z0-9_]+\/status\/([0-9]+)/, label: "Twitter/X", icon: "🐦" },
+  facebook:   { regex: /(?:www\.|m\.)?facebook\.com\/(?:watch|reel|videos|story\.php|.*\/videos)\/?(?:.*v=|.*id=)?([0-9]+)/, label: "Facebook", icon: "👤" },
+  soundcloud: { regex: /(?:www\.)?soundcloud\.com\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+/, label: "SoundCloud", icon: "🎧" },
+  spotify:    { regex: /open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/, label: "Spotify", icon: "🎵" },
+  reddit:     { regex: /(?:www\.|v\.)?reddit\.com\/r\/[A-Za-z0-9_]+\/comments\/([A-Za-z0-9]+)|redd\.it\/([A-Za-z0-9]+)/, label: "Reddit", icon: "🤖" },
+  twitch:     { regex: /(?:www\.)?twitch\.tv\/(?:videos\/[0-9]+|[A-Za-z0-9_]+)/, label: "Twitch", icon: "🎮" },
+  generic:    { regex: /https?:\/\/[^\s]+/, label: "Generic", icon: "🌐" },
 };
 
 function detectPlatform(url) {
@@ -95,21 +95,22 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
   const safeUrl = `"${url.replace(/"/g, "")}"`;
   const out     = `"${outputPath}"`;
   const noList  = "--no-playlist";
-  const noWarn  = "--no-warnings";
+  const noWarn  = "--no-warnings --no-check-certificates";
+  const ua      = '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"';
   const cookies = cookiesFlag(platformKey);
 
   if (type === "mp3" || type === "audio") {
-    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -x --audio-format mp3 --audio-quality 0 -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${ua} ${cookies} -x --audio-format mp3 --audio-quality 0 -o ${out} ${safeUrl}`;
   }
 
   if (type === "thumbnail") {
-    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${ua} ${cookies} --skip-download --write-thumbnail --convert-thumbnails jpg -o ${out} ${safeUrl}`;
   }
 
   // FIX: type "photo" seharusnya download semua gambar dari post,
   // bukan --skip-download. Gunakan format terbaik yang tersedia.
   if (type === "photo") {
-    return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -o ${out} ${safeUrl}`;
+    return `${YT_DLP_BIN} ${noList} ${noWarn} ${ua} ${cookies} -o ${out} ${safeUrl}`;
   }
 
   // Video — pilih resolusi
@@ -122,7 +123,7 @@ function buildCommand({ url, type, quality, outputPath, platformKey = "generic" 
   };
 
   const fmt = qualityMap[quality] || qualityMap["720p"];
-  return `${YT_DLP_BIN} ${noList} ${noWarn} ${cookies} -f "${fmt}" --merge-output-format mp4 -o ${out} ${safeUrl}`;
+  return `${YT_DLP_BIN} ${noList} ${noWarn} ${ua} ${cookies} -f "${fmt}" --merge-output-format mp4 -o ${out} ${safeUrl}`;
 }
 
 // ─── Metadata Fetcher ─────────────────────────────────────────
@@ -132,27 +133,42 @@ async function fetchMetadata(url) {
   const cookies  = cookiesFlag(platform.key);
 
   return new Promise((resolve) => {
-    exec(
-      `${YT_DLP_BIN} --no-warnings --dump-json --no-playlist ${cookies} ${safeUrl}`,
-      { timeout: 20_000 },
-      (err, stdout) => {
-        if (err || !stdout) return resolve(null);
+    const ua  = '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"';
+    const cmd = `${YT_DLP_BIN} --no-warnings --dump-json --no-playlist --no-check-certificates ${ua} ${cookies} ${safeUrl}`;
+    
+    exec(cmd, { timeout: 25_000 }, (err, stdout) => {
+        if (err || !stdout) {
+          console.error(`[fetchMetadata error] ${err?.message || "No stdout"}`);
+          return resolve(null);
+        }
         try {
-          const d = JSON.parse(stdout.trim().split("\n")[0]);
+          // Cari baris pertama yang valid JSON (menghindari warning di baris pertama)
+          const lines = stdout.trim().split("\n");
+          let data = null;
+          for (const line of lines) {
+            if (line.trim().startsWith("{")) {
+              data = JSON.parse(line);
+              break;
+            }
+          }
+          
+          if (!data) return resolve(null);
+
           resolve({
-            title:     d.title      || "Unknown",
-            uploader:  d.uploader   || d.channel || "Unknown",
-            duration:  d.duration   || 0,
-            thumbnail: d.thumbnail  || null,
-            viewCount: d.view_count || 0,
-            likeCount: d.like_count || 0,
-            formats: (d.formats || [])
+            title:     data.title      || data.alt_title || "Unknown",
+            uploader:  data.uploader   || data.channel   || data.uploader_id || "Unknown",
+            duration:  data.duration   || 0,
+            thumbnail: data.thumbnail  || (data.thumbnails ? data.thumbnails[data.thumbnails.length-1].url : null),
+            viewCount: data.view_count || 0,
+            likeCount: data.like_count || 0,
+            formats: (data.formats || [])
               .filter(f => f.height)
               .map(f => f.height + "p")
               .filter((v, i, a) => a.indexOf(v) === i)
               .sort((a, b) => parseInt(a) - parseInt(b)),
           });
-        } catch {
+        } catch (e) {
+          console.error("[fetchMetadata parse error]", e.message);
           resolve(null);
         }
       }
