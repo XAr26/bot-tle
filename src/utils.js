@@ -9,17 +9,25 @@ const config = require("./config");
  * Cek apakah string adalah URL valid.
  */
 function isURL(str) {
+  // 1. Jika ada protokol, gunakan parser standar
+  if (str.startsWith("http://") || str.startsWith("https://")) {
+    try { new URL(str); return true; } catch { return false; }
+  }
+
+  // 2. Jika tidak ada protokol, harus:
+  //    - Tidak mengandung spasi
+  //    - Mengandung setidaknya satu titik (untuk domain)
+  //    - Tidak berakhir dengan titik (mencegah kalimat seperti "Halo.")
+  //    - Karakter sebelum dan sesudah titik minimal 2 huruf
+  if (/\s/.test(str)) return false; 
+  if (!str.includes(".")) return false;
+  if (str.endsWith(".")) return false;
+
   try {
-    new URL(str);
+    new URL("https://" + str);
     return true;
   } catch {
-    try {
-      // Jika gagal, coba tambahkan https:// (untuk kasus youtube.com saja)
-      new URL("https://" + str);
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 

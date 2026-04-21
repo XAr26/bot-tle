@@ -79,7 +79,7 @@ const PLATFORMS = {
   spotify:    { regex: /open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/, label: "Spotify", icon: "🎵" },
   reddit:     { regex: /(?:www\.|v\.)?reddit\.com\/r\/[A-Za-z0-9_]+\/comments\/([A-Za-z0-9]+)|redd\.it\/([A-Za-z0-9]+)/, label: "Reddit", icon: "🤖" },
   twitch:     { regex: /(?:www\.)?twitch\.tv\/(?:videos\/[0-9]+|[A-Za-z0-9_]+)/, label: "Twitch", icon: "🎮" },
-  generic:    { regex: /https?:\/\/[^\s]+|[a-zA-Z0-9.-]+\.[a-z]{2,}\/[^\s]*/, label: "Generic", icon: "🌐" },
+  generic:    { regex: /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/, label: "Generic", icon: "🌐" },
 };
 
 function detectPlatform(url) {
