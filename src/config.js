@@ -1,78 +1,39 @@
-// ============================================================
-//  config.js — Centralized configuration & ENV validation
-// ============================================================
 "use strict";
 
 require("dotenv").config();
 
-// ─── Required ENV ─────────────────────────────────────────────
-const REQUIRED = ["BOT_TOKEN"];
-for (const key of REQUIRED) {
-  if (!process.env[key]) {
-    console.error(`❌  Missing ENV: ${key}`);
-    process.exit(1);
-  }
+// ─── Validasi ENV wajib ───────────────────────────────────────
+if (!process.env.BOT_TOKEN) {
+  console.error("❌ BOT_TOKEN belum diset di .env");
+  process.exit(1);
 }
 
-// ─── Config Object ────────────────────────────────────────────
-const config = {
-  // Telegram
+module.exports = {
+  // ── Telegram ─────────────────────────────────────────────
   bot: {
-    token:    process.env.BOT_TOKEN,
+    token: process.env.BOT_TOKEN,
     adminIds: (process.env.ADMIN_IDS || "")
       .split(",")
       .map(id => parseInt(id.trim()))
       .filter(Boolean),
-    // Hanya private chat yang dilayani
     privateOnly: true,
   },
 
-  // Gemini AI (Prioritas Utama)
-  gemini: {
-    // Mendukung variasi nama variabel (GEMINI_API_KEY atau Gemini_Api_Key)
-    apiKey: process.env.GEMINI_API_KEY || process.env.Gemini_Api_Key || null,
-    // FIX: gemini-1.0-pro sudah deprecated sejak Feb 2025
-    // Gunakan gemini-1.5-flash (cepat & gratis tier tersedia)
-    model:  process.env.GEMINI_MODEL || "gemini-1.5-flash",
-  },
-
-  // Ollama AI (Cadangan)
-  ollama: {
-    url:         process.env.OLLAMA_URL     || "http://localhost:11434",
-    model:       process.env.OLLAMA_MODEL   || "phi3",
-    timeout:     45_000,
-    maxTokens:   1024,
-    temperature: 0.7,
-    topP:        0.9,
-  },
-
-  // Download engine
-  download: {
-    maxFileMB:    49,          // batas upload Telegram
-    execTimeout:  3 * 60_000, // 3 menit per download
-    maxRetries:   2,
-    cookiesPath:  process.env.COOKIES_PATH || null,
-    cookiesBrowser: process.env.COOKIES_BROWSER || null,
-    igUsername:   process.env.IG_USERNAME  || null,
-    // Platform yang butuh cookies
-    cookiesPlatforms: ["youtube", "instagram", "facebook", "twitter", "tiktok"],
-  },
-
-  // Integration
+  // ── Python FastAPI (Download + AI engine) ────────────────
   pythonApi: {
-    url: process.env.PYTHON_API_URL || "http://localhost:8000",
+    url:   process.env.PYTHON_API_URL    || "http://localhost:8000",
     token: process.env.INTERNAL_API_TOKEN || "bot-tle-secret-key-123",
   },
 
-  // Memory AI per user
+  // ── Memory AI per user ───────────────────────────────────
+  // BUG FIX: store.js pakai config.memory.maxHistory tapi key ini tidak ada
   memory: {
-    maxHistory: 12,
+    maxHistory: parseInt(process.env.MAX_HISTORY || "12"),
   },
 
-  // URL store (callback_data workaround)
+  // ── URL Store (solusi callback_data 64 byte) ─────────────
+  // BUG FIX: store.js pakai config.urlStore.ttlMs tapi key ini tidak ada
   urlStore: {
     ttlMs: 30 * 60 * 1000, // 30 menit
   },
 };
-
-module.exports = config;

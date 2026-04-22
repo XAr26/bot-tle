@@ -1,7 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-dotenv
-google-generative-ai
+# BUG FIX: nama package yang benar adalah "google-generativeai"
+# bukan "google-generative-ai" (dengan tanda hubung di tengah)
+# pip install google-generative-ai → PackageNotFoundError
+google-generativeai
 yt-dlp
 instaloader
 requests

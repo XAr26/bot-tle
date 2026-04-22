@@ -1,4 +1,11 @@
+# ============================================================
+#  download_service.py — yt-dlp + instaloader engine
+#  IMPROVEMENT: Lebih robust, log lebih baik, timeout,
+#  sanitasi user_id, handle file ekstensi dinamis yt-dlp.
+# ============================================================
+
 import os
+import re
 import asyncio
 import yt_dlp
 import instaloader
@@ -9,131 +16,157 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DOWNLOAD_DIR = Path(__file__).parent.parent / "downloads"
-THUMB_DIR = Path(__file__).parent.parent / "thumbs"
 COOKIES_FILE = Path(__file__).parent.parent / "cookies.txt"
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-os.makedirs(THUMB_DIR, exist_ok=True)
+
+YDL_BASE_OPTS = {
+    "quiet":        True,
+    "no_warnings":  True,
+    "user_agent":   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+}
+
 
 class DownloadService:
     def __init__(self):
-        self.ig = instaloader.Instaloader()
-        self.ig_user = os.getenv("IG_USERNAME")
+        self.ig       = instaloader.Instaloader()
+        self.ig_user  = os.getenv("IG_USERNAME")
+
         if self.ig_user:
             try:
-                # Attempt to load session if exists
                 session_file = Path.home() / f".config/instaloader/session-{self.ig_user}"
                 if session_file.exists():
                     self.ig.load_session_from_file(self.ig_user, str(session_file))
+                    print(f"✅ instaloader: sesi {self.ig_user} dimuat")
+                else:
+                    print(f"⚠️  instaloader: session file tidak ditemukan untuk {self.ig_user}")
+                    print(f"   Jalankan: instaloader --login {self.ig_user}")
             except Exception as e:
-                print(f"IG Session load error: {e}")
+                print(f"⚠️  instaloader session error: {e}")
+
+    def _ydl_opts(self, extra: dict = {}) -> dict:
+        opts = {**YDL_BASE_OPTS, **extra}
+        if COOKIES_FILE.exists():
+            opts["cookiefile"] = str(COOKIES_FILE)
+        return opts
 
     async def get_metadata(self, url: str) -> Optional[Dict]:
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        }
-        if COOKIES_FILE.exists():
-            ydl_opts['cookiefile'] = str(COOKIES_FILE)
-
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            with yt_dlp.YoutubeDL(self._ydl_opts()) as ydl:
+                info = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: ydl.extract_info(url, download=False)
+                )
+                formats = list(set([
+                    f"{f.get('height')}p"
+                    for f in info.get("formats", [])
+                    if f.get("height")
+                ]))
+                formats.sort(key=lambda x: int(x[:-1]))
                 return {
-                    "title": info.get("title", "Unknown"),
-                    "uploader": info.get("uploader", info.get("channel", "Unknown")),
-                    "duration": info.get("duration", 0),
+                    "title":     info.get("title", "Unknown"),
+                    "uploader":  info.get("uploader") or info.get("channel", "Unknown"),
+                    "duration":  info.get("duration", 0),
                     "thumbnail": info.get("thumbnail"),
                     "viewCount": info.get("view_count", 0),
                     "likeCount": info.get("like_count", 0),
-                    "formats": list(set([f"{f.get('height')}p" for f in info.get("formats", []) if f.get("height")])),
-                    "platform": info.get("extractor_key", "generic").lower()
+                    "formats":   formats,
                 }
         except Exception as e:
-            print(f"Metadata error: {e}")
+            print(f"🔴 Metadata error: {e}")
             return None
 
-    async def download_media(self, url: str, media_type: str = "video", quality: str = "720p", user_id: str = "0") -> Dict:
-        user_id = "".join(c for c in user_id if c.isalnum()) or "0"
+    async def download_media(self, url: str, media_type: str = "video",
+                             quality: str = "720p", user_id: str = "0") -> Dict:
+        # Sanitasi user_id agar aman sebagai nama file
+        user_id   = re.sub(r"[^a-zA-Z0-9]", "", user_id) or "0"
         timestamp = int(asyncio.get_event_loop().time() * 1000)
-        ext = "mp3" if media_type == "mp3" else "mp4"
-        output_tmpl = str(DOWNLOAD_DIR / f"{user_id}_{timestamp}.%(ext)s")
-        
-        ydl_opts = {
-            'outtmpl': output_tmpl,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        }
-        
-        if COOKIES_FILE.exists():
-            ydl_opts['cookiefile'] = str(COOKIES_FILE)
+        out_tmpl  = str(DOWNLOAD_DIR / f"{user_id}_{timestamp}.%(ext)s")
 
         if media_type == "mp3":
-            ydl_opts.update({
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
+            extra = {
+                "outtmpl": out_tmpl,
+                "format":  "bestaudio/best",
+                "postprocessors": [{
+                    "key":              "FFmpegExtractAudio",
+                    "preferredcodec":   "mp3",
+                    "preferredquality": "192",
                 }],
-            })
+            }
         else:
-            # Video quality fallback
-            fmt = f"bestvideo[height<={quality[:-1]}]+bestaudio/best[height<={quality[:-1]}]/best"
-            ydl_opts.update({
-                'format': fmt,
-                'merge_output_format': 'mp4',
-            })
+            h = quality.replace("p", "")
+            extra = {
+                "outtmpl":              out_tmpl,
+                "format":               f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best",
+                "merge_output_format":  "mp4",
+            }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                # Find the actual file (yt-dlp might change extension)
-                downloaded_file = ydl.prepare_filename(info)
-                if not os.path.exists(downloaded_file):
-                    # Check for .mp3 or .mp4 specifically if prepare_filename is slightly off
-                    base = os.path.splitext(downloaded_file)[0]
-                    for e in ['.mp3', '.mp4', '.mkv', '.webm']:
-                        if os.path.exists(base + e):
-                            downloaded_file = base + e
-                            break
-                
+            with yt_dlp.YoutubeDL(self._ydl_opts(extra)) as ydl:
+                info = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: ydl.extract_info(url, download=True)
+                )
+
+                # Cari file output yang sebenarnya (ekstensi bisa beda)
+                base_name = f"{user_id}_{timestamp}"
+                actual    = None
+                for ext in [".mp3", ".mp4", ".mkv", ".webm", ".m4a"]:
+                    candidate = DOWNLOAD_DIR / (base_name + ext)
+                    if candidate.exists():
+                        actual = candidate
+                        break
+
+                if not actual:
+                    # Fallback: cari file terbaru dengan prefix
+                    files = sorted(
+                        DOWNLOAD_DIR.glob(f"{base_name}*"),
+                        key=lambda f: f.stat().st_mtime,
+                        reverse=True
+                    )
+                    actual = files[0] if files else None
+
+                if not actual:
+                    return {"status": "error", "message": "File tidak ditemukan setelah download."}
+
                 return {
-                    "status": "success",
-                    "file_path": str(downloaded_file),
-                    "filename": os.path.basename(downloaded_file),
-                    "size_mb": round(os.path.getsize(downloaded_file) / (1024 * 1024), 2)
+                    "status":   "success",
+                    "file_path": str(actual),
+                    "filename":  actual.name,
+                    "size_mb":   round(actual.stat().st_size / (1024 * 1024), 2),
                 }
         except Exception as e:
+            print(f"🔴 Download error: {e}")
             return {"status": "error", "message": str(e)}
 
-    async def download_instagram_photos(self, url: str, user_id: str) -> List[Dict]:
-        user_id = "".join(c for c in user_id if c.isalnum()) or "0"
-        # Simple extraction using instaloader
-        try:
-            import re
-            shortcode_match = re.search(r"/(?:p|reel|tv|stories)/([A-Za-z0-9_-]+)", url)
-            if not shortcode_match:
-                return []
-            
-            shortcode = shortcode_match.group(1)
-            post = instaloader.Post.from_shortcode(self.ig.context, shortcode)
-            
-            out_dir = DOWNLOAD_DIR / f"ig_{user_id}_{shortcode}"
-            os.makedirs(out_dir, exist_ok=True)
-            
-            self.ig.download_post(post, target=str(out_dir))
-            
-            photos = []
-            for file in out_dir.glob("*"):
-                if file.suffix.lower() in [".jpg", ".jpeg", ".png"]:
-                    photos.append({
-                        "file_path": str(file),
-                        "size_mb": round(os.path.getsize(file) / (1024 * 1024), 2)
-                    })
-            return photos
-        except Exception as e:
-            print(f"IG Photo error: {e}")
+    async def download_instagram_photos(self, url: str, user_id: str = "0") -> List[Dict]:
+        match = re.search(r"/(?:p|reel|tv|stories)/([A-Za-z0-9_-]+)", url)
+        if not match:
+            print(f"🔴 IG: shortcode tidak ditemukan dari URL: {url}")
             return []
+
+        shortcode = match.group(1)
+        out_dir   = DOWNLOAD_DIR / f"ig_{re.sub(r'[^a-zA-Z0-9]', '', user_id)}_{shortcode}"
+        os.makedirs(out_dir, exist_ok=True)
+
+        try:
+            post = instaloader.Post.from_shortcode(self.ig.context, shortcode)
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self.ig.download_post(post, target=str(out_dir))
+            )
+        except instaloader.exceptions.LoginRequiredException:
+            print(f"🔴 IG: login required untuk {shortcode}")
+            return []
+        except Exception as e:
+            print(f"🔴 IG download error: {e}")
+            return []
+
+        photos = []
+        for f in out_dir.glob("*"):
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
+                photos.append({
+                    "file_path": str(f),
+                    "size_mb":   round(f.stat().st_size / (1024 * 1024), 2),
+                })
+        return photos
+
 
 download_service = DownloadService()

@@ -1,6 +1,6 @@
-# 🤖 Bot Downloader + AI
+# 🤖 Bot Downloader + AI (Hybrid Architecture)
 
-Telegram bot yang bisa download video/audio dari berbagai platform **dan** chat dengan AI lokal via Ollama.
+Telegram bot yang bisa download video/audio dari berbagai platform **dan** chat dengan AI (Gemini / Ollama) via arsitektur hybrid Node.js + Python FastAPI.
 
 ---
 
@@ -10,7 +10,8 @@ Telegram bot yang bisa download video/audio dari berbagai platform **dan** chat 
 |---|---|
 | 📥 Download Video | YouTube, Instagram, TikTok, Twitter/X, Facebook, Reddit, Twitch |
 | 🎵 Download Audio | Ekstrak MP3 dari semua platform di atas |
-| 🤖 AI Chat | Chat natural dengan AI lokal (Ollama) + memory percakapan |
+| 🤖 AI Chat | Chat natural dengan AI hybrid (Gemini & Ollama) + memory percakapan |
+| 🛡 Security Auth | Komunikasi inter-service dijamin dengan `INTERNAL_API_TOKEN` aman |
 | 📊 Info Video | Thumbnail, judul, durasi, views, likes sebelum download |
 | 🎚️ Pilih Kualitas | MP3 / 360p / 480p / 720p / 1080p via tombol inline |
 | 📋 Queue System | Antrian download per user, tidak bisa tabrakan |
@@ -47,14 +48,30 @@ sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
 winget install yt-dlp
 ```
 
-### 4. Install & jalankan Ollama
+### 4. Install Env Python & Dependencies API
+
+Karena fitur *download* dan proses *AI* kini dipisah ke dalam *services backend* FastAPI, lakukan ini:
+
+```bash
+cd python_api
+python -m venv venv
+
+# Aktivasi virtual environment
+source venv/bin/activate    # Linux / Mac
+.\venv\Scripts\activate     # Windows
+
+# Install dependency Python API
+pip install -r requirements.txt
+cd ..
+```
+
+### 5. Install & jalankan Ollama (Opsional, fallback dari Gemini)
 
 ```bash
 # Install: https://ollama.com/download
 ollama serve          # jalankan server (terminal terpisah)
-ollama pull llama3    # download model (sekali saja, ~4GB)
+ollama pull phi3      # download model ringan Phi3
 ```
-
 Model lain yang bisa dipakai: `mistral`, `gemma2`, `phi3`, `qwen2`
 
 ### 5. Buat file `.env`
@@ -67,8 +84,10 @@ Edit file `.env` dan isi nilainya:
 
 ```env
 BOT_TOKEN=123456789:AAFxxx...   # dari @BotFather
+GEMINI_API_KEY=AIzaSy...        # Wajib jika pakai Gemini
+INTERNAL_API_TOKEN=rahasia-123  # Wajib (sama antar node & python)
+PYTHON_API_URL=http://localhost:8000
 OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama3
 ADMIN_IDS=                       # Telegram ID kamu (opsional)
 ```
 
@@ -76,13 +95,22 @@ ADMIN_IDS=                       # Telegram ID kamu (opsional)
 >
 > **Cara dapat Telegram ID:** Chat [@userinfobot](https://t.me/userinfobot)
 
-### 6. Jalankan bot
+### 7. Jalankan Python API & Bot Node.js
 
+Disarankan gunakan dua terminal terpisah:
+
+**Terminal 1 (Backend Python):**
 ```bash
-# Production
+cd python_api
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+**Terminal 2 (Telegram Bot):**
+```bash
+# Production bot Node.js
 npm start
 
-# Development (auto-restart saat file berubah)
+# Development
 npm run dev
 ```
 
@@ -92,23 +120,21 @@ npm run dev
 
 ```
 bot-tle/
+├── python_api/             # Backend Python (Download + AI processing)
+│   ├── main.py             # FastAPI entry point
+│   ├── ai_service.py       # Wrapper Gemini & Ollama fallback
+│   └── download_service.py # yt-dlp & instaloader logic
 ├── src/
-│   ├── index.js            # Entry point: inisialisasi bot, routing pesan & commands
-│   ├── config.js           # Konfigurasi terpusat dari ENV
-│   ├── store.js            # State management (memory, stats, url store)
-│   ├── utils.js            # Helper functions (format, validasi, dll)
-│   ├── downloader.js       # Engine: download, queue, metadata, platform detection
+│   ├── index.js            # Entry point bot Node.js
+│   ├── config.js           # Konfigurasi terpusat & Auth internal
+│   ├── store.js            # State management
+│   ├── utils.js            # Helper functions
 │   └── handlers/
-│       ├── ai.js           # Handler AI chat (Ollama streaming)
-│       └── download.js     # Handler download flow & keyboard
-├── downloads/              # Folder sementara file download (di-ignore git)
-├── cookies.txt             # Cookie browser untuk auth (di-ignore git, JANGAN push!)
-├── .env                    # Environment variables (di-ignore git, JANGAN push!)
-├── .env.example            # Template ENV
-├── .gitignore
-├── nixpacks.toml           # Konfigurasi build Railway
-├── railway.json            # Konfigurasi deploy Railway
-├── package.json
+│       ├── ai.js           # Kirim req chat ke API Python
+│       └── download.js     # Kirim req link ke API Python
+├── downloads/              # Folder sementara untuk file unduhan
+├── .env                    # Environment variables
+├── package.json            # Node.js dependencies
 └── README.md
 ```
 
@@ -133,11 +159,13 @@ bot-tle/
 | Variable | Wajib | Keterangan |
 |---|---|---|
 | `BOT_TOKEN` | ✅ | Token bot dari @BotFather |
-| `OLLAMA_URL` | ✅ | URL server Ollama (default: `http://localhost:11434`) |
-| `OLLAMA_MODEL` | ✅ | Nama model Ollama yang dipakai |
+| `INTERNAL_API_TOKEN` | ✅ | Token random rahasia inter-koneksi |
+| `GEMINI_API_KEY` | ✅ | API Key Gemini dari Google AI studio |
+| `PYTHON_API_URL` | ❌ | Default: `http://localhost:8000` |
+| `OLLAMA_URL` | ❌ | Fallback lokal: `http://localhost:11434` |
 | `ADMIN_IDS` | ❌ | ID Telegram admin, pisah koma |
-| `COOKIES_PATH` | ❌ | Path ke cookies.txt (default: `cookies.txt` di root) |
-| `IG_USERNAME` | ❌ | Username Instagram untuk instaloader |
+| `COOKIES_PATH` | ❌ | Path ke cookies.txt untuk yt-dlp |
+| `IG_USERNAME` | ❌ | Username instaloader di python |
 
 ---
 

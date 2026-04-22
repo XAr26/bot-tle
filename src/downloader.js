@@ -1,5 +1,9 @@
 // ============================================================
-//  downloader.js — Shared Utilities & Concurrency Queue
+//  downloader.js — Platform detection, queue, shared utils
+//  BUG FIX: Versi sebelumnya tidak export YT_DLP_BIN
+//  sehingga admin.js crash saat require.
+//  Versi ini juga tidak lagi menyimpan download logic
+//  karena semua download dilakukan via Python API.
 // ============================================================
 "use strict";
 
@@ -7,26 +11,29 @@ const fs   = require("fs");
 const path = require("path");
 const { EventEmitter } = require("events");
 
-// ─── Direktori ───────────────────────────────────────────────
-const DOWNLOAD_DIR = path.join(__dirname, "downloads");
-const THUMB_DIR    = path.join(__dirname, "thumbs");
+// ─── Direktori (tetap ada untuk kompatibilitas admin.js) ─────
+const DOWNLOAD_DIR = path.join(__dirname, "..", "downloads");
+const THUMB_DIR    = path.join(__dirname, "..", "thumbs");
 
 for (const dir of [DOWNLOAD_DIR, THUMB_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+// BUG FIX: YT_DLP_BIN tidak di-export sebelumnya → admin.js crash
+const YT_DLP_BIN = process.env.YT_DLP_PATH || "yt-dlp";
+
 // ─── Platform Detection ──────────────────────────────────────
 const PLATFORMS = {
-  youtube:    { regex: /(?:youtube\.com|youtu\.be)\/(?:watch\?v=|shorts\/|live\/|embed\/|v\/|.*[?&]v=)?([^"&?\/\s]{11})/, label: "YouTube", icon: "🎬" },
-  instagram:  { regex: /(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)/, label: "Instagram", icon: "📸" },
-  tiktok:     { regex: /(?:www\.|vm\.|vt\.)?tiktok\.com\/.*(?:video|v|t|@.*\/video)\/([0-9]+)|(?:vm\.|vt\.)tiktok\.com\/([A-Za-z0-9]+)/, label: "TikTok", icon: "🎵" },
-  twitter:    { regex: /(?:twitter\.com|x\.com)\/[A-Za-z0-9_]+\/status\/([0-9]+)/, label: "Twitter/X", icon: "🐦" },
-  facebook:   { regex: /(?:www\.|m\.)?facebook\.com\/(?:watch|reel|videos|story\.php|.*\/videos)\/?(?:.*v=|.*id=)?([0-9]+)/, label: "Facebook", icon: "👤" },
-  soundcloud: { regex: /(?:www\.)?soundcloud\.com\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+/, label: "SoundCloud", icon: "🎧" },
-  spotify:    { regex: /open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/, label: "Spotify", icon: "🎵" },
-  reddit:     { regex: /(?:www\.|v\.)?reddit\.com\/r\/[A-Za-z0-9_]+\/comments\/([A-Za-z0-9]+)|redd\.it\/([A-Za-z0-9]+)/, label: "Reddit", icon: "🤖" },
-  twitch:     { regex: /(?:www\.)?twitch\.tv\/(?:videos\/[0-9]+|[A-Za-z0-9_]+)/, label: "Twitch", icon: "🎮" },
-  generic:    { regex: /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/, label: "Generic", icon: "🌐" },
+  youtube:    { regex: /youtube\.com|youtu\.be/,           label: "YouTube",    icon: "🎬" },
+  instagram:  { regex: /instagram\.com/,                   label: "Instagram",  icon: "📸" },
+  tiktok:     { regex: /tiktok\.com|vm\.tiktok/,           label: "TikTok",     icon: "🎵" },
+  twitter:    { regex: /twitter\.com|x\.com/,              label: "Twitter/X",  icon: "🐦" },
+  facebook:   { regex: /facebook\.com|fb\.watch|fb\.com/,  label: "Facebook",   icon: "👤" },
+  soundcloud: { regex: /soundcloud\.com/,                  label: "SoundCloud", icon: "🎧" },
+  spotify:    { regex: /open\.spotify\.com/,               label: "Spotify",    icon: "🎵" },
+  reddit:     { regex: /reddit\.com|redd\.it/,             label: "Reddit",     icon: "🤖" },
+  twitch:     { regex: /twitch\.tv/,                       label: "Twitch",     icon: "🎮" },
+  generic:    { regex: /.*/,                               label: "Generic",    icon: "🌐" },
 };
 
 function detectPlatform(url) {
@@ -40,7 +47,7 @@ function cleanUp(fp) {
   if (fp && fs.existsSync(fp)) fs.unlink(fp, () => {});
 }
 
-// ─── Download Queue (Concurrency control on Node side) ───
+// ─── Download Queue ───────────────────────────────────────────
 class DownloadQueue extends EventEmitter {
   constructor() {
     super();
@@ -90,4 +97,5 @@ module.exports = {
   queue,
   PLATFORMS,
   DOWNLOAD_DIR,
+  YT_DLP_BIN,   // BUG FIX: export ini agar admin.js tidak crash
 };
