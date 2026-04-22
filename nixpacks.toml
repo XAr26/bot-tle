@@ -4,7 +4,7 @@ nixPkgs = ["nodejs_20", "python3", "ffmpeg", "uv"]
 [phases.install]
 cmds = [
   "npm install",
-  "python3 -m pip install -r python_api/requirements.txt",
+  "uv pip install -r python_api/requirements.txt --system",
   "uv tool install -U yt-dlp",
   "uv tool install -U instaloader"
 ]
