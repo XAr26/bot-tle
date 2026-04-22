@@ -2,6 +2,8 @@ fastapi
 uvicorn[standard]
 python-dotenv
 google-generativeai
+yt-dlp
+instaloader
 requests
 aiohttp
 aiofiles

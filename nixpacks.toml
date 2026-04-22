@@ -4,10 +4,7 @@ nixPkgs = ["nodejs_20", "python3", "ffmpeg", "uv", "bash", "coreutils"]
 [phases.install]
 cmds = [
   "npm install",
-  "uv venv /app/venv",
-  "uv pip install -r python_api/requirements.txt --python /app/venv/bin/python",
-  "uv tool install -U yt-dlp",
-  "uv tool install -U instaloader"
+  "uv venv /app/venv && uv pip install -r python_api/requirements.txt --python /app/venv/bin/python"
 ]
 
 # Pastikan binary uv tools ada di PATH saat runtime

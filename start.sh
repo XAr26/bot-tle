@@ -9,13 +9,13 @@ echo "🚀 Starting Python API Engine..."
 # Export PATH agar background process bisa menemukan node/ffmpeg
 export PATH=/app/venv/bin:/home/railway/.local/bin:/root/.local/bin:/usr/bin:/usr/local/bin:$PATH
 export PYTHONUNBUFFERED=1
-# Gunakan python dari venv yang dibuat pada saat build
-PYTHON=/app/venv/bin/python
-if [ ! -f "$PYTHON" ]; then
-  echo "⚠️  venv tidak ditemukan, menggunakan python3 sistem..."
-  PYTHON=python3
+
+# Aktifkan virtual environment
+if [ -f "/app/venv/bin/activate" ]; then
+  source /app/venv/bin/activate
 fi
-$PYTHON python_api/main.py &
+
+python3 python_api/main.py &
 
 # Tunggu API siap (port 8000)
 echo "⏳ Waiting for Python API to be ready on port 8000..."
