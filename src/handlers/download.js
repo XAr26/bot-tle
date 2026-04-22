@@ -85,7 +85,7 @@ async function handleLinkDetected(bot, chatId, userId, url) {
 
   } catch (err) {
     clearInterval(interval);
-    console.error("🔴 Info Error:", err.response?.data || err.message);
+    console.error("🔴 Info Error:", err.response?.data || err.message || JSON.stringify(err));
     await bot.editMessageText("❌ Gagal mengambil info link. Coba lagi.", {
       chat_id: chatId, message_id: wait.message_id,
     }).catch(() => {});

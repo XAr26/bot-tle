@@ -8,6 +8,7 @@
 echo "🚀 Starting Python API Engine..."
 # Export PATH agar background process bisa menemukan node/ffmpeg
 export PATH=$PATH:/usr/bin:/usr/local/bin
+export PYTHONUNBUFFERED=1
 python3 python_api/main.py &
 
 # Tunggu API siap (port 8000)

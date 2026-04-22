@@ -54,7 +54,7 @@ async function handleAI(bot, chatId, userId, text) {
 
   } catch (err) {
     clearInterval(interval);
-    console.error("🔴 AI Error:", err.response?.data || err.message);
+    console.error("🔴 AI Error:", err.response?.data || err.message || JSON.stringify(err));
 
     let msg = "❌ AI error, coba lagi.";
     if (err.code === "ECONNREFUSED")
