@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "ffmpeg", "uv"]
+nixPkgs = ["nodejs_20", "python3", "ffmpeg", "uv", "bash"]
 
 [phases.install]
 cmds = [
@@ -12,7 +12,7 @@ cmds = [
 
 # Pastikan binary uv tools ada di PATH saat runtime
 [variables]
-PATH = "/home/railway/.local/bin:/root/.local/bin:$PATH"
+PATH = "/home/railway/.local/bin:/root/.local/bin:/usr/bin:/bin:$PATH"
 
 [start]
 cmd = "chmod +x start.sh && ./start.sh"
