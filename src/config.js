@@ -61,6 +61,7 @@ const config = {
   // Integration
   pythonApi: {
     url: process.env.PYTHON_API_URL || "http://localhost:8000",
+    token: process.env.INTERNAL_API_TOKEN || "bot-tle-secret-key-123",
   },
 
   // Memory AI per user

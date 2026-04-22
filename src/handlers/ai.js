@@ -25,6 +25,8 @@ async function handleAI(bot, chatId, userId, text) {
     const response = await axios.post(`${config.pythonApi.url}/ai`, {
       prompt: text,
       history: history.map(h => ({ role: h.role, content: h.content }))
+    }, {
+      headers: { "X-API-KEY": config.pythonApi.token }
     });
 
     clearInterval(interval);

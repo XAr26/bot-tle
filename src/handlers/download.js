@@ -4,6 +4,7 @@
 "use strict";
 
 const fs = require("fs");
+const axios = require("axios");
 const {
   downloadMedia,
   downloadPhotos,
@@ -13,7 +14,7 @@ const {
   queue,
 } = require("../downloader");
 const store = require("../store");
-const { startDots, secondsToHMS, formatNumber } = require("../utils");
+const { startDots, secondsToHMS, formatNumber, getErrorMessage } = require("../utils");
 
 // Platform yang mendukung download foto
 const PHOTO_PLATFORMS = ["instagram", "twitter", "facebook", "reddit"];
@@ -90,7 +91,8 @@ async function handleLinkDetected(bot, chatId, userId, url) {
 
   try {
     const response = await axios.get(`${config.pythonApi.url}/download/info`, {
-      params: { url }
+      params: { url },
+      headers: { "X-API-KEY": config.pythonApi.token }
     });
     const meta = response.data;
     
@@ -147,6 +149,8 @@ async function executeDownload(bot, chatId, userId, url, type) {
         type:    type === "mp3" ? "mp3" : "video",
         quality: type !== "mp3" ? type : "720p",
         user_id: String(userId)
+      }, {
+        headers: { "X-API-KEY": config.pythonApi.token }
       });
 
       const result = response.data;
@@ -200,7 +204,8 @@ async function executePhotoDownload(bot, chatId, userId, url) {
 
     try {
       const response = await axios.get(`${config.pythonApi.url}/download/instagram`, {
-        params: { url, user_id: String(userId) }
+        params: { url, user_id: String(userId) },
+        headers: { "X-API-KEY": config.pythonApi.token }
       });
 
       const photos = response.data.photos;

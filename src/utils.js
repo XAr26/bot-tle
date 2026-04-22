@@ -88,6 +88,12 @@ function escapeMarkdown(text) {
   return String(text).replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
 }
 
+function getErrorMessage(err) {
+  if (typeof err === "string") return `❌ Error: ${err}`;
+  if (err && err.message) return `❌ Error: ${err.message}`;
+  return "❌ Terjadi kesalahan pada proses download.";
+}
+
 module.exports = {
   isURL,
   secondsToHMS,
@@ -96,4 +102,5 @@ module.exports = {
   isAdmin,
   startDots,
   escapeMarkdown,
+  getErrorMessage,
 };

@@ -55,6 +55,7 @@ class DownloadService:
             return None
 
     async def download_media(self, url: str, media_type: str = "video", quality: str = "720p", user_id: str = "0") -> Dict:
+        user_id = "".join(c for c in user_id if c.isalnum()) or "0"
         timestamp = int(asyncio.get_event_loop().time() * 1000)
         ext = "mp3" if media_type == "mp3" else "mp4"
         output_tmpl = str(DOWNLOAD_DIR / f"{user_id}_{timestamp}.%(ext)s")
@@ -107,6 +108,7 @@ class DownloadService:
             return {"status": "error", "message": str(e)}
 
     async def download_instagram_photos(self, url: str, user_id: str) -> List[Dict]:
+        user_id = "".join(c for c in user_id if c.isalnum()) or "0"
         # Simple extraction using instaloader
         try:
             import re
