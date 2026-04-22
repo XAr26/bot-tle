@@ -21,9 +21,12 @@ COOKIES_FILE = Path(__file__).parent.parent / "cookies.txt"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 YDL_BASE_OPTS = {
-    "quiet":        True,
-    "no_warnings":  True,
-    "user_agent":   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "quiet":               True,
+    "no_warnings":         True,
+    "user_agent":          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "nocheckcertificate":  True,
+    "geo_bypass":          True,
+    "extract_flat":        "in_playlist",
 }
 
 

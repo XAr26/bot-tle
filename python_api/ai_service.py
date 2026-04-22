@@ -12,6 +12,7 @@
 import os
 import requests
 import json
+import asyncio
 from typing import List, Optional, Dict
 from dotenv import load_dotenv
 
@@ -63,19 +64,37 @@ class AIService:
 
     async def generate_response(self, prompt: str, history: List[Dict] = None) -> str:
         full_prompt = self._build_prompt(prompt, history)
+        prefer_ollama = os.getenv("PREFER_OLLAMA", "true").lower() == "true"
 
-        # ── Coba Gemini dulu ──────────────────────────────────
-        if self.gemini_api_key and GEMINI_AVAILABLE:
-            try:
-                model    = genai.GenerativeModel(self.gemini_model)
-                response = model.generate_content(full_prompt)
-                if response and response.text:
-                    return response.text.strip()
-            except Exception as e:
-                print(f"🔴 Gemini error: {e}")
-                # Fallback ke Ollama
+        # ── Jalankan sesuai preferensi ────────────────────────
+        if prefer_ollama:
+            res = await self._try_ollama(full_prompt)
+            if res: return res
+            res = await self._try_gemini(full_prompt)
+            if res: return res
+        else:
+            res = await self._try_gemini(full_prompt)
+            if res: return res
+            res = await self._try_ollama(full_prompt)
+            if res: return res
 
-        # ── Fallback Ollama ───────────────────────────────────
+        return "❌ Maaf, AI sedang tidak tersedia (keduanya gagal). Coba lagi nanti."
+
+    async def _try_gemini(self, full_prompt: str) -> Optional[str]:
+        if not self.gemini_api_key or not GEMINI_AVAILABLE:
+            return None
+        try:
+            model    = genai.GenerativeModel(self.gemini_model)
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: model.generate_content(full_prompt)
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            print(f"🔴 Gemini error: {e}")
+        return None
+
+    async def _try_ollama(self, full_prompt: str) -> Optional[str]:
         try:
             resp = requests.post(
                 f"{self.ollama_url}/api/generate",
@@ -85,14 +104,14 @@ class AIService:
                     "stream": False,
                     "options": { "num_predict": 200, "temperature": 0.7 },
                 },
-                timeout=60,
+                timeout=30,
             )
             if resp.status_code == 200:
                 return resp.json().get("response", "").strip()
         except Exception as e:
             print(f"🔴 Ollama error: {e}")
+        return None
 
-        return "❌ Maaf, AI sedang tidak tersedia. Coba lagi nanti."
 
     async def analyze_image(self, image_data: bytes, prompt: str = "Apa yang ada di gambar ini?") -> str:
         if not self.gemini_api_key or not GEMINI_AVAILABLE:
