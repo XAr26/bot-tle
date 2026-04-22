@@ -9,6 +9,7 @@ import re
 import asyncio
 import yt_dlp
 import instaloader
+import shutil
 from pathlib import Path
 from typing import Dict, Optional, List
 from dotenv import load_dotenv
@@ -21,12 +22,13 @@ COOKIES_FILE = Path(__file__).parent.parent / "cookies.txt"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 YDL_BASE_OPTS = {
-    "quiet":               True,
-    "no_warnings":         True,
+    "quiet":               False,   # Set to False for deep logging
+    "no_warnings":         False,
     "user_agent":          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "nocheckcertificate":  True,
     "geo_bypass":          True,
     "extract_flat":        "in_playlist",
+    "js_runtime":          "node",   # Force use Node.js for signature decryption
 }
 
 
@@ -76,7 +78,7 @@ class DownloadService:
                 }
         except Exception as e:
             print(f"🔴 Metadata error: {e}")
-            return None
+            raise e  # Re-raise to see the full stack trace in logs
 
     async def download_media(self, url: str, media_type: str = "video",
                              quality: str = "720p", user_id: str = "0") -> Dict:

@@ -92,6 +92,9 @@ class AIService:
                 return response.text.strip()
         except Exception as e:
             print(f"🔴 Gemini error: {e}")
+            if "404" in str(e):
+                return "❌ AI Error: API Key kamu tidak valid atau model tidak ditemukan. Mohon buat API Key baru di Google AI Studio (aistudio.google.com)."
+            return f"❌ Gemini Error: {e}"
         return None
 
     async def _try_ollama(self, full_prompt: str) -> Optional[str]:

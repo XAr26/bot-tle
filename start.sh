@@ -6,8 +6,8 @@
 # ============================================================
 
 echo "🚀 Starting Python API Engine..."
-# Gunakan python3 karena Railway (Nixpacks) menginstall python3
-# Pastikan dependencies sudah terinstall via nixpacks.toml
+# Export PATH agar background process bisa menemukan node/ffmpeg
+export PATH=$PATH:/usr/bin:/usr/local/bin
 python3 python_api/main.py &
 
 # Tunggu API siap (port 8000)
