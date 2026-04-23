@@ -166,7 +166,7 @@ async function executePhotoDownload(bot, chatId, userId, url) {
     interval = startDots(bot, chatId, statusMsg.message_id, "🖼️ Mengambil foto");
 
     const res = await axios.get(
-      `${config.pythonApi.url}/download/instagram`,
+      `${config.pythonApi.url}/download/photos`,
       {
         params:  { url, user_id: String(userId) },
         headers: { "X-API-KEY": config.pythonApi.token },

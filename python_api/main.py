@@ -71,11 +71,11 @@ async def execute_download(req: DownloadRequest):
         raise HTTPException(status_code=500, detail=result.get("message", "Download gagal"))
     return result
 
-@app.get("/download/instagram", dependencies=[Depends(verify_key)])
-async def instagram_photos(url: str = Query(...), user_id: str = Query("0")):
-    photos = await download_service.download_instagram_photos(url, user_id)
+@app.get("/download/photos", dependencies=[Depends(verify_key)])
+async def get_photos(url: str = Query(...), user_id: str = Query("0")):
+    photos = await download_service.download_photos(url, user_id)
     if not photos:
-        raise HTTPException(status_code=400, detail="Gagal download foto. Cek sesi instaloader.")
+        raise HTTPException(status_code=400, detail="Gagal mengambil foto/gambar dari link tersebut.")
     return {"photos": photos}
 
 # ─── Run ──────────────────────────────────────────────────────

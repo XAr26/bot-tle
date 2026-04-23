@@ -56,20 +56,30 @@ class DownloadService:
         return opts
 
     async def get_metadata(self, url: str) -> Optional[Dict]:
+        print(f"🔍 Info request for: {url}")
         try:
-            with yt_dlp.YoutubeDL(self._ydl_opts()) as ydl:
+            # Custom opts untuk platform tertentu jika perlu
+            opts = self._ydl_opts()
+            if "twitter.com" in url or "x.com" in url:
+                opts["extractor_args"] = {"twitter": {"api": ["syndication"]}}
+                
+            with yt_dlp.YoutubeDL(opts) as ydl:
                 info = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: ydl.extract_info(url, download=False)
                 )
+                if not info:
+                    return None
+                    
                 formats = list(set([
                     f"{f.get('height')}p"
                     for f in info.get("formats", [])
                     if f.get("height")
                 ]))
-                formats.sort(key=lambda x: int(x[:-1]))
+                formats.sort(key=lambda x: int(x[:-1])) if formats else []
+                
                 return {
-                    "title":     info.get("title", "Unknown"),
-                    "uploader":  info.get("uploader") or info.get("channel", "Unknown"),
+                    "title":     info.get("title") or info.get("description", "No Title")[:50],
+                    "uploader":  info.get("uploader") or info.get("channel") or info.get("user_rt_name") or "Unknown",
                     "duration":  info.get("duration", 0),
                     "thumbnail": info.get("thumbnail"),
                     "viewCount": info.get("view_count", 0),
@@ -77,8 +87,8 @@ class DownloadService:
                     "formats":   formats,
                 }
         except Exception as e:
-            print(f"🔴 Metadata error: {e}")
-            raise e  # Re-raise to see the full stack trace in logs
+            print(f"🔴 Metadata error for {url}: {e}")
+            return None
 
     async def download_media(self, url: str, media_type: str = "video",
                              quality: str = "720p", user_id: str = "0") -> Dict:
@@ -99,11 +109,17 @@ class DownloadService:
             }
         else:
             h = quality.replace("p", "")
+            # Format selection yang lebih fleksibel:
+            # Cari video+audio dengan syarat tinggi, ATAU ambil yang terbaik saja (fallback)
+            fmt = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best[height<={h}]/best"
             extra = {
                 "outtmpl":              out_tmpl,
-                "format":               f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best",
+                "format":               fmt,
                 "merge_output_format":  "mp4",
             }
+            
+            if "twitter.com" in url or "x.com" in url:
+                extra["extractor_args"] = {"twitter": {"api": ["syndication"]}}
 
         try:
             with yt_dlp.YoutubeDL(self._ydl_opts(extra)) as ydl:
@@ -141,6 +157,51 @@ class DownloadService:
         except Exception as e:
             print(f"🔴 Download error: {e}")
             return {"status": "error", "message": str(e)}
+
+    async def download_photos(self, url: str, user_id: str = "0") -> List[Dict]:
+        """Routing download foto berdasarkan platform."""
+        if "instagram.com" in url:
+            return await self.download_instagram_photos(url, user_id)
+        else:
+            return await self.download_generic_photos(url, user_id)
+
+    async def download_generic_photos(self, url: str, user_id: str = "0") -> List[Dict]:
+        """Download foto dari Twitter/X, Facebook, dll menggunakan yt-dlp."""
+        user_id_clean = re.sub(r"[^a-zA-Z0-9]", "", user_id) or "0"
+        timestamp     = int(asyncio.get_event_loop().time() * 1000)
+        out_dir       = DOWNLOAD_DIR / f"photo_{user_id_clean}_{timestamp}"
+        os.makedirs(out_dir, exist_ok=True)
+
+        opts = self._ydl_opts({
+            "outtmpl":            str(out_dir / "%(index)s_%(title)s.%(ext)s"),
+            "format":             "bestimage/best",
+            "writethumbnail":     True,
+            "skip_download":      False,
+            "allow_playlist_files": True,
+        })
+
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: ydl.download([url])
+                )
+        except Exception as e:
+            print(f"🔴 Generic photo download error: {e}")
+            return []
+
+        photos = []
+        for f in out_dir.glob("*"):
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp", ".jfif"]:
+                photos.append({
+                    "file_path": str(f),
+                    "size_mb":   round(f.stat().st_size / (1024 * 1024), 2),
+                })
+        
+        # Jika tidak ada file tapi folder ada, bersihkan jika kosong
+        if not photos and out_dir.exists():
+            shutil.rmtree(out_dir, ignore_errors=True)
+            
+        return photos
 
     async def download_instagram_photos(self, url: str, user_id: str = "0") -> List[Dict]:
         match = re.search(r"/(?:p|reel|tv|stories)/([A-Za-z0-9_-]+)", url)
