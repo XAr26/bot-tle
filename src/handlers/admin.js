@@ -64,12 +64,14 @@ async function handleTestEnv(bot, chatId) {
 
   // 8. ENV vars
   const envCheck = [
-    ["BOT_TOKEN",          !!process.env.BOT_TOKEN],
-    ["GEMINI_API_KEY",     !!process.env.GEMINI_API_KEY],
-    ["OLLAMA_URL",         !!process.env.OLLAMA_URL],
-    ["IG_USERNAME",        !!process.env.IG_USERNAME],
-    ["PYTHON_API_URL",     !!process.env.PYTHON_API_URL],
-    ["INTERNAL_API_TOKEN", !!process.env.INTERNAL_API_TOKEN],
+    ["BOT_TOKEN",            !!process.env.BOT_TOKEN],
+    ["GEMINI_API_KEY",       !!process.env.GEMINI_API_KEY],
+    ["OLLAMA_URL",           !!process.env.OLLAMA_URL],
+    ["IG_USERNAME",          !!process.env.IG_USERNAME],
+    ["SPOTIFY_CLIENT_ID",    !!process.env.SPOTIFY_CLIENT_ID],
+    ["SPOTIFY_CLIENT_SECRET", !!process.env.SPOTIFY_CLIENT_SECRET],
+    ["PYTHON_API_URL",       !!process.env.PYTHON_API_URL],
+    ["INTERNAL_API_TOKEN",   !!process.env.INTERNAL_API_TOKEN],
   ];
   const envLines = envCheck.map(([k, v]) => `${v ? "✅" : "⚠️"} ${k}`).join("\n");
   results.push(`\n📋 *ENV:*\n${envLines}`);

@@ -177,6 +177,21 @@ bot.on("callback_query", async (query) => {
       await executeDownload(bot, chatId, from.id, url, type);
     }
   }
+
+  if (action === "recommend") {
+    const url = store.getUrl(urlId);
+
+    if (!url) {
+      return bot.sendMessage(chatId,
+        "⚠️ Link sudah kadaluarsa (>30 menit). Kirim ulang link-nya ya!"
+      );
+    }
+
+    // Hapus dari store setelah dipakai
+    store.deleteUrl(urlId);
+
+    await handleMusicRecommendation(bot, chatId, from.id, url);
+  }
 });
 
 // ─── Main Message Handler ─────────────────────────────────────

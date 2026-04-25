@@ -3,6 +3,7 @@ uvicorn[standard]
 python-dotenv
 google-generativeai
 yt-dlp
+spotdl
 instaloader
 requests
 aiohttp

@@ -36,4 +36,12 @@ module.exports = {
   urlStore: {
     ttlMs: 30 * 60 * 1000, // 30 menit
   },
+
+  // ── Spotify (optional) ──────────────────────────────────
+  // Butuh Spotify Developer Credentials untuk download
+  // Daftar di: https://developer.spotify.com/dashboard
+  spotify: {
+    clientId:     process.env.SPOTIFY_CLIENT_ID,
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+  },
 };

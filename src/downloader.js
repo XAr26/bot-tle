@@ -24,16 +24,17 @@ const YT_DLP_BIN = process.env.YT_DLP_PATH || "yt-dlp";
 
 // ─── Platform Detection ──────────────────────────────────────
 const PLATFORMS = {
-  youtube:    { regex: /youtube\.com|youtu\.be/,           label: "YouTube",    icon: "🎬" },
-  instagram:  { regex: /instagram\.com/,                   label: "Instagram",  icon: "📸" },
-  tiktok:     { regex: /tiktok\.com|vm\.tiktok/,           label: "TikTok",     icon: "🎵" },
-  twitter:    { regex: /twitter\.com|x\.com/,              label: "Twitter/X",  icon: "🐦" },
-  facebook:   { regex: /facebook\.com|fb\.watch|fb\.com/,  label: "Facebook",   icon: "👤" },
-  soundcloud: { regex: /soundcloud\.com/,                  label: "SoundCloud", icon: "🎧" },
-  spotify:    { regex: /open\.spotify\.com/,               label: "Spotify",    icon: "🎵" },
-  reddit:     { regex: /reddit\.com|redd\.it/,             label: "Reddit",     icon: "🤖" },
-  twitch:     { regex: /twitch\.tv/,                       label: "Twitch",     icon: "🎮" },
-  generic:    { regex: /.*/,                               label: "Generic",    icon: "🌐" },
+  youtube:    { regex: /youtube\.com|youtu\.be/,           label: "YouTube",    icon: "🎬", isMusic: false },
+  youtubeMusic: { regex: /music\.youtube\.com/,            label: "YouTube Music", icon: "🎵", isMusic: true },
+  instagram:  { regex: /instagram\.com/,                   label: "Instagram",  icon: "📸", isMusic: false },
+  tiktok:     { regex: /tiktok\.com|vm\.tiktok/,           label: "TikTok",     icon: "🎵", isMusic: false },
+  twitter:    { regex: /twitter\.com|x\.com/,              label: "Twitter/X",  icon: "🐦", isMusic: false },
+  facebook:   { regex: /facebook\.com|fb\.watch|fb\.com/,  label: "Facebook",   icon: "👤", isMusic: false },
+  soundcloud: { regex: /soundcloud\.com/,                  label: "SoundCloud", icon: "🎧", isMusic: true },
+  spotify:    { regex: /open\.spotify\.com/,               label: "Spotify",    icon: "🎵", isMusic: true },
+  reddit:     { regex: /reddit\.com|redd\.it/,             label: "Reddit",     icon: "🤖", isMusic: false },
+  twitch:     { regex: /twitch\.tv/,                       label: "Twitch",     icon: "🎮", isMusic: false },
+  generic:    { regex: /.*/,                               label: "Generic",    icon: "🌐", isMusic: false },
 };
 
 function detectPlatform(url) {
